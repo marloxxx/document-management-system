@@ -193,7 +193,19 @@ export default function EditDocument({ document, types, directions, availableReg
                                             ) : (
                                                 availableRegistrations.map((reg) => (
                                                     <SelectItem key={reg.id} value={reg.number}>
-                                                        {reg.number} ({reg.state})
+                                                        <div className="flex flex-col">
+                                                            <span>{reg.number} ({reg.state})</span>
+                                                            {reg.existing_directions && reg.existing_directions.length > 0 && (
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    Existing: {reg.existing_directions.join(', ')}
+                                                                </span>
+                                                            )}
+                                                            {reg.state === 'PARTIAL' && (
+                                                                <span className="text-xs text-blue-600">
+                                                                    ✓ Available for opposite direction
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </SelectItem>
                                                 ))
                                             )}

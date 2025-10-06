@@ -170,6 +170,11 @@ export default function CreateDocument({ types, directions, availableRegistratio
                                   Existing: {reg.existing_directions.join(', ')}
                                 </span>
                               )}
+                              {reg.state === 'PARTIAL' && (
+                                <span className="text-xs text-blue-600">
+                                  ✓ Available for opposite direction
+                                </span>
+                              )}
                             </div>
                           </SelectItem>
                         ))
