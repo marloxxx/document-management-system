@@ -163,23 +163,6 @@ export default function RegistrationsIndex({ isAdmin }: Props) {
         )
       },
     },
-    {
-      id: "actions",
-      header: "Actions",
-      enableSorting: false,
-      cell: ({ row }) => {
-        const registration = row.original
-        return (
-          <div className="flex items-center gap-2">
-            <Link href={route("documents.index", { q: registration.number })}>
-              <Button variant="ghost" size="sm">
-                <Eye className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        )
-      },
-    },
   ]
 
   return (
