@@ -37,8 +37,7 @@ class DocumentPolicy
      */
     public function update(User $user, Document $document): bool
     {
-        // boleh edit saat DRAFT
-        if ($document->status !== 'DRAFT') return false;
+        // Admin can edit any document, users can edit their own documents
         return $user->role === 'ADMIN' || $document->owner_user_id === $user->id;
     }
 
@@ -47,7 +46,8 @@ class DocumentPolicy
      */
     public function delete(User $user, Document $document): bool
     {
-        return $user->role === 'ADMIN' || ($document->owner_user_id === $user->id && $document->status === 'DRAFT');
+        // Admin can delete any document, users can delete their own documents
+        return $user->role === 'ADMIN' || $document->owner_user_id === $user->id;
     }
 
     /**

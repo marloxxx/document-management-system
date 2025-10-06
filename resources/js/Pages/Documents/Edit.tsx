@@ -131,6 +131,7 @@ export default function EditDocument({ document, types, directions, availableReg
                 toast({
                     title: "Success",
                     description: isDraft ? "Document saved as draft" : "Document updated successfully",
+                    variant: "success",
                 })
             },
             onError: () => {

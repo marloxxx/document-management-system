@@ -156,7 +156,8 @@ class DocumentController extends Controller
         $data['direction'] = DirectionHelper::convertToOldFormat($data['direction']);
 
         // Determine status based on is_draft flag
-        $status = $data['is_draft'] ? 'DRAFT' : 'SUBMITTED';
+        $isDraft = filter_var($data['is_draft'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $status = $isDraft ? 'DRAFT' : 'SUBMITTED';
         unset($data['is_draft']); // Remove from data array
 
         return DB::transaction(function () use ($data, $user, $status) {
@@ -271,7 +272,8 @@ class DocumentController extends Controller
         $data['direction'] = DirectionHelper::convertToOldFormat($data['direction']);
 
         // Determine status based on is_draft flag
-        $status = $data['is_draft'] ? 'DRAFT' : 'SUBMITTED';
+        $isDraft = filter_var($data['is_draft'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $status = $isDraft ? 'DRAFT' : 'SUBMITTED';
         unset($data['is_draft']); // Remove from data array
 
         return DB::transaction(function () use ($data, $document, $status) {
@@ -320,6 +322,26 @@ class DocumentController extends Controller
             $document->save();
 
             return redirect()->route('documents.show', $document->id)->with('ok', 'Dokumen berhasil diperbarui');
+        });
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Document $document)
+    {
+        $this->authorize('delete', $document);
+
+        return DB::transaction(function () use ($document) {
+            $reg = $document->registration;
+
+            // Delete the document
+            $document->delete();
+
+            // Update registration state
+            $this->regSvc->refreshState($reg);
+
+            return redirect()->route('documents.index')->with('ok', 'Dokumen berhasil dihapus');
         });
     }
 }

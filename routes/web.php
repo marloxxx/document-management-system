@@ -41,6 +41,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/{document}', [DocumentController::class, 'show'])->name('documents.show');
     Route::get('/documents/{document}/edit', [DocumentController::class, 'edit'])->name('documents.edit');
     Route::put('/documents/{document}', [DocumentController::class, 'update'])->name('documents.update');
+    Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {

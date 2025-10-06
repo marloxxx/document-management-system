@@ -67,6 +67,7 @@ export default function RegistrationsIndex({ isAdmin }: Props) {
       toast({
         title: "Success",
         description: `Registration number ${data.number} has been issued successfully.`,
+        variant: "success",
       })
 
       // Refresh the data table with a small delay to ensure backend transaction is committed

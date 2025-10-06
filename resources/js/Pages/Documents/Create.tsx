@@ -100,6 +100,7 @@ export default function CreateDocument({ types, directions, availableRegistratio
         toast({
           title: "Success",
           description: isDraft ? "Document saved as draft" : "Document created successfully",
+          variant: "success",
         })
         reset()
       },
