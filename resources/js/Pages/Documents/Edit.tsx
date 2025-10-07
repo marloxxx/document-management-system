@@ -14,6 +14,7 @@ import { ArrowLeft, FileText, Save, AlertCircle, BookOpen } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { DatePicker } from "@/components/ui/date-picker"
+import { AutocompleteInput } from "@/components/AutocompleteInput"
 
 interface Document {
     id: number
@@ -68,6 +69,7 @@ interface Props {
 export default function EditDocument({ document, types, directions, availableRegistrations, errors: _serverErrors }: Props) {
     const { toast } = useToast()
     const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+    const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null)
 
     const { data, setData, processing } = useForm({
         registration_number: document.registration_number,
@@ -94,6 +96,36 @@ export default function EditDocument({ document, types, directions, availableReg
             })
         }
     }, [formErrors])
+
+    // Update selected registration when registration number changes
+    useEffect(() => {
+        if (data.registration_number) {
+            const reg = availableRegistrations.find(r => r.number === data.registration_number)
+            setSelectedRegistration(reg || null)
+
+            // Auto-select opposite direction for PARTIAL status
+            if (reg && reg.state === 'PARTIAL' && reg.existing_directions && reg.existing_directions.length > 0) {
+                const existingDirection = reg.existing_directions[0] // Get the first existing direction
+                const oppositeDirection = getOppositeDirection(existingDirection)
+                if (oppositeDirection && !data.direction) {
+                    setData("direction", oppositeDirection as "Indo-Mandarin" | "Mandarin-Indo" | "Indo-Taiwan" | "Taiwan-Indo")
+                }
+            }
+        } else {
+            setSelectedRegistration(null)
+        }
+    }, [data.registration_number, availableRegistrations])
+
+    // Helper function to get opposite direction
+    const getOppositeDirection = (direction: string): string | null => {
+        const oppositeMap: Record<string, string> = {
+            'Indo-Mandarin': 'Mandarin-Indo',
+            'Mandarin-Indo': 'Indo-Mandarin',
+            'Indo-Taiwan': 'Taiwan-Indo',
+            'Taiwan-Indo': 'Indo-Taiwan'
+        }
+        return oppositeMap[direction] || null
+    }
 
     const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
         e.preventDefault()
@@ -242,6 +274,51 @@ export default function EditDocument({ document, types, directions, availableReg
                                             <AlertCircle className="h-3 w-3" />
                                             {formErrors.registration_number}
                                         </p>
+                                    )}
+
+                                    {/* Additional information for PARTIAL status */}
+                                    {selectedRegistration && selectedRegistration.state === 'PARTIAL' && (
+                                        <Alert className="mt-2">
+                                            <AlertCircle className="h-4 w-4" />
+                                            <AlertDescription>
+                                                <div className="space-y-1">
+                                                    <p className="font-medium text-yellow-800">Registration Status: Partial</p>
+                                                    <p className="text-sm text-yellow-700">
+                                                        This registration number has been used for one direction.
+                                                        You can create another document with the opposite direction.
+                                                    </p>
+                                                    {selectedRegistration.existing_directions && selectedRegistration.existing_directions.length > 0 && (
+                                                        <div className="text-sm text-yellow-700">
+                                                            <span className="font-medium">Existing directions:</span>{" "}
+                                                            {selectedRegistration.existing_directions.map(dir => {
+                                                                const directionMap: Record<string, string> = {
+                                                                    'Indo-Mandarin': 'Indonesia → Mandarin',
+                                                                    'Mandarin-Indo': 'Mandarin → Indonesia',
+                                                                    'Indo-Taiwan': 'Indonesia → Taiwan',
+                                                                    'Taiwan-Indo': 'Taiwan → Indonesia'
+                                                                }
+                                                                return directionMap[dir] || dir
+                                                            }).join(', ')}
+                                                        </div>
+                                                    )}
+                                                    {data.direction && (
+                                                        <div className="text-sm text-green-700 font-medium">
+                                                            ✓ Translation direction automatically selected: {
+                                                                (() => {
+                                                                    const directionMap: Record<string, string> = {
+                                                                        'Indo-Mandarin': 'Indonesia → Mandarin',
+                                                                        'Mandarin-Indo': 'Mandarin → Indonesia',
+                                                                        'Indo-Taiwan': 'Indonesia → Taiwan',
+                                                                        'Taiwan-Indo': 'Taiwan → Indonesia'
+                                                                    }
+                                                                    return directionMap[data.direction] || data.direction
+                                                                })()
+                                                            }
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </AlertDescription>
+                                        </Alert>
                                     )}
                                 </div>
 
@@ -398,19 +475,17 @@ export default function EditDocument({ document, types, directions, availableReg
                             </div>
 
                             {/* User Identity */}
-                            <div className="space-y-2">
-                                <Label htmlFor="user_identity">User Identity</Label>
-                                <Textarea
-                                    id="user_identity"
-                                    value={data.user_identity}
-                                    onChange={(e) => setData("user_identity", e.target.value)}
-                                    placeholder="Enter user identity information (name, address, etc.)..."
-                                    rows={3}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Complete identity information of the user requesting translation
-                                </p>
-                            </div>
+                            <AutocompleteInput
+                                id="user_identity"
+                                label="User Identity"
+                                value={data.user_identity}
+                                onChange={(value) => setData("user_identity", value)}
+                                placeholder="Enter user identity information (name, address, etc.)..."
+                                suggestionsUrl="/documents/user-identity/suggestions"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Complete identity information of the user requesting translation
+                            </p>
 
                             {/* Info Alert */}
                             <Alert>

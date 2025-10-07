@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents/{document}', [DocumentController::class, 'update'])->name('documents.update.post');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
     Route::get('/documents/{document}/evidence', [DocumentController::class, 'downloadEvidence'])->name('documents.evidence');
+    Route::get('/documents/user-identity/suggestions', [DocumentController::class, 'getUserIdentitySuggestions'])->name('documents.user-identity-suggestions');
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {

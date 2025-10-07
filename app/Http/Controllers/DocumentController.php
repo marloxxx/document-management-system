@@ -452,4 +452,31 @@ class DocumentController extends Controller
             'Content-Type' => $mimeType,
         ]);
     }
+
+    /**
+     * Get user identity suggestions for autocomplete
+     */
+    public function getUserIdentitySuggestions(Request $request)
+    {
+        $query = $request->get('q', '');
+
+        if (empty($query)) {
+            return response()->json([]);
+        }
+
+        $suggestions = Document::whereNotNull('user_identity')
+            ->where('user_identity', 'like', '%' . $query . '%')
+            ->distinct()
+            ->pluck('user_identity')
+            ->take(10)
+            ->map(function ($identity) {
+                return [
+                    'value' => $identity,
+                    'label' => $identity
+                ];
+            })
+            ->values();
+
+        return response()->json($suggestions);
+    }
 }

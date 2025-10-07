@@ -7,6 +7,7 @@ import { resolvePageComponent } from "laravel-vite-plugin/inertia-helpers"
 import { ThemeProvider } from "next-themes"
 import { ConfirmDialogProvider } from "@/components/custom"
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 
 // Extend ImportMeta interface for Vite
 declare global {
@@ -32,6 +33,7 @@ createInertiaApp({
         <ConfirmDialogProvider>
           <App {...props} />
           <Toaster />
+          <SonnerToaster />
         </ConfirmDialogProvider>
       </ThemeProvider>,
     )
