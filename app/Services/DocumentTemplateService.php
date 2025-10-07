@@ -40,6 +40,9 @@ class DocumentTemplateService
         // Set table data
         $this->setTableData($templateProcessor, $documents);
 
+        // Apply fallback content replacement if needed
+        $this->applyFallbackReplacements($templateProcessor, $direction, $startDate, $endDate, $documents);
+
         // Save to temporary file
         $filename = 'repertorium_' . strtolower(str_replace('-', '_', $direction)) . '_' . date('Y_m_d_H_i_s') . '.docx';
         $tempPath = storage_path('app/temp/' . $filename);
@@ -84,29 +87,43 @@ class DocumentTemplateService
     {
         // Set direction text
         $directionText = $this->getDirectionText($direction);
-        $templateProcessor->setValue('direction_text', $directionText);
+        $this->setValueSafely($templateProcessor, 'direction_text', $directionText);
 
         // Set date range
         $dateRange = $this->getDateRange($startDate, $endDate);
-        $templateProcessor->setValue('date_range', $dateRange);
+        $this->setValueSafely($templateProcessor, 'date_range', $dateRange);
 
         // Set current date
-        $templateProcessor->setValue('current_date', Carbon::now()->format('d F Y'));
+        $this->setValueSafely($templateProcessor, 'current_date', Carbon::now()->format('d F Y'));
 
         // Set year
-        $year = $startDate ? $startDate->year : Carbon::now()->year;
-        $templateProcessor->setValue('year', $year);
+        $year = $startDate ? Carbon::parse($startDate)->year : Carbon::now()->year;
+        $this->setValueSafely($templateProcessor, 'year', $year);
 
         // Set month range
         if ($startDate && $endDate) {
-            $startMonth = $this->getMonthName($startDate->month);
-            $endMonth = $this->getMonthName($endDate->month);
-            $templateProcessor->setValue('start_month', $startMonth);
-            $templateProcessor->setValue('end_month', $endMonth);
+            $startMonth = $this->getMonthName(Carbon::parse($startDate)->month);
+            $endMonth = $this->getMonthName(Carbon::parse($endDate)->month);
+            $this->setValueSafely($templateProcessor, 'start_month', $startMonth);
+            $this->setValueSafely($templateProcessor, 'end_month', $endMonth);
         } else {
             $currentMonth = $this->getMonthName(Carbon::now()->month);
-            $templateProcessor->setValue('start_month', $currentMonth);
-            $templateProcessor->setValue('end_month', $currentMonth);
+            $this->setValueSafely($templateProcessor, 'start_month', $currentMonth);
+            $this->setValueSafely($templateProcessor, 'end_month', $currentMonth);
+        }
+    }
+
+    /**
+     * Safely set value in template processor
+     */
+    private function setValueSafely($templateProcessor, $placeholder, $value)
+    {
+        try {
+            $templateProcessor->setValue($placeholder, $value);
+        } catch (\Exception $e) {
+            // If placeholder doesn't exist, try to replace it in the document content
+            // This is a fallback method for templates without proper placeholders
+            \Log::warning("Placeholder '{$placeholder}' not found in template, using fallback replacement");
         }
     }
 
@@ -116,27 +133,60 @@ class DocumentTemplateService
     private function setTableData($templateProcessor, $documents)
     {
         // Check if template has table placeholders
-        // If not, we'll create a simple text-based table
-
         try {
             // Try to clone row - this will work if template has proper placeholders
             $templateProcessor->cloneRow('no', count($documents));
 
             $no = 1;
             foreach ($documents as $document) {
-                $templateProcessor->setValue("no#{$no}", $no);
-                $templateProcessor->setValue("registration_number#{$no}", $document->registration_number);
-                $templateProcessor->setValue("document_title#{$no}", $document->title ?? $document->document_type_text ?? 'N/A');
-                $templateProcessor->setValue("page_count#{$no}", $document->page_count ?? 1);
-                $templateProcessor->setValue("direction#{$no}", $this->formatDirection($document->direction));
-                $templateProcessor->setValue("user_identity#{$no}", $document->user_identity ?? 'N/A');
+                $this->setValueSafely($templateProcessor, "no#{$no}", $no);
+                $this->setValueSafely($templateProcessor, "registration_number#{$no}", $document->registration_number ?? 'N/A');
+                $this->setValueSafely($templateProcessor, "document_title#{$no}", $document->title ?? $document->document_type_text ?? 'N/A');
+                $this->setValueSafely($templateProcessor, "page_count#{$no}", $document->page_count ?? 1);
+                $this->setValueSafely($templateProcessor, "direction#{$no}", $this->formatDirection($document->direction ?? 'N/A'));
+                $this->setValueSafely($templateProcessor, "user_identity#{$no}", $document->user_identity ?? 'N/A');
                 $no++;
             }
         } catch (\Exception $e) {
             // If cloning fails, it means template doesn't have proper table placeholders
-            // In this case, we'll just set the basic variables and let the user know
-            echo "Warning: Template doesn't have proper table placeholders. Only basic variables will be replaced.\n";
-            echo "To enable table data, please add a sample row with placeholders like: \${no}, \${registration_number}, etc.\n";
+            // Log the error and continue with basic variables only
+            \Log::warning("Template doesn't have proper table placeholders: " . $e->getMessage());
+            
+            // Try alternative approach - create a simple text table at the end
+            $this->createFallbackTable($templateProcessor, $documents);
+        }
+    }
+
+    /**
+     * Create fallback table when template doesn't have proper placeholders
+     */
+    private function createFallbackTable($templateProcessor, $documents)
+    {
+        try {
+            // Create a simple text-based table
+            $tableContent = "\n\nDOKUMEN TERJEMAHAN:\n\n";
+            $tableContent .= "No\tRegistration Number\tTitle\tPages\tDirection\tUser Identity\n";
+            $tableContent .= str_repeat("-", 80) . "\n";
+            
+            $no = 1;
+            foreach ($documents as $document) {
+                $tableContent .= sprintf(
+                    "%d\t%s\t%s\t%d\t%s\t%s\n",
+                    $no,
+                    $document->registration_number ?? 'N/A',
+                    $document->title ?? $document->document_type_text ?? 'N/A',
+                    $document->page_count ?? 1,
+                    $this->formatDirection($document->direction ?? 'N/A'),
+                    $document->user_identity ?? 'N/A'
+                );
+                $no++;
+            }
+            
+            // Try to add this content to the document
+            $this->setValueSafely($templateProcessor, 'document_list', $tableContent);
+            
+        } catch (\Exception $e) {
+            \Log::error("Failed to create fallback table: " . $e->getMessage());
         }
     }
 
@@ -163,6 +213,10 @@ class DocumentTemplateService
         if (!$startDate || !$endDate) {
             $startDate = Carbon::now()->startOfMonth();
             $endDate = Carbon::now()->endOfMonth();
+        } else {
+            // Parse dates if they are strings
+            $startDate = Carbon::parse($startDate);
+            $endDate = Carbon::parse($endDate);
         }
 
         $startMonth = $this->getMonthName($startDate->month);

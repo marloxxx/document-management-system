@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, forwardRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle } from 'lucide-react'
@@ -19,7 +19,7 @@ interface AutocompleteInputProps {
     suggestionsUrl: string
 }
 
-export function AutocompleteInput({
+export const AutocompleteInput = forwardRef<HTMLInputElement, AutocompleteInputProps>(({
     id,
     label,
     value,
@@ -28,11 +28,10 @@ export function AutocompleteInput({
     error,
     required = false,
     suggestionsUrl
-}: AutocompleteInputProps) {
+}, ref) => {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([])
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const inputRef = useRef<HTMLInputElement>(null)
     const suggestionsRef = useRef<HTMLDivElement>(null)
 
     // Debounce function
@@ -112,8 +111,11 @@ export function AutocompleteInput({
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (
-                inputRef.current &&
-                !inputRef.current.contains(event.target as Node) &&
+                ref &&
+                typeof ref === 'object' &&
+                'current' in ref &&
+                ref.current &&
+                !ref.current.contains(event.target as Node) &&
                 suggestionsRef.current &&
                 !suggestionsRef.current.contains(event.target as Node)
             ) {
@@ -125,7 +127,7 @@ export function AutocompleteInput({
         return () => {
             document.removeEventListener('mousedown', handleClickOutside)
         }
-    }, [])
+    }, [ref])
 
     return (
         <div className="space-y-2">
@@ -134,7 +136,7 @@ export function AutocompleteInput({
             </Label>
             <div className="relative">
                 <Input
-                    ref={inputRef}
+                    ref={ref}
                     id={id}
                     value={value}
                     onChange={handleInputChange}
@@ -177,4 +179,6 @@ export function AutocompleteInput({
             )}
         </div>
     )
-}
+})
+
+AutocompleteInput.displayName = 'AutocompleteInput'

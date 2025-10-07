@@ -55,6 +55,7 @@ export default function UsersCreate({ errors }: Props) {
                 toast({
                     title: "Success",
                     description: "User created successfully.",
+                    variant: "success",
                 })
             },
         })

@@ -7,7 +7,6 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -53,10 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents/{document}', [DocumentController::class, 'update'])->name('documents.update.post');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
     Route::get('/documents/{document}/evidence', [DocumentController::class, 'downloadEvidence'])->name('documents.evidence');
-    Route::get('/export/repertorium', [ExportController::class, 'exportRepertorium'])->name('export.repertorium');
-    Route::get('/export/formats', [ExportController::class, 'getExportFormats'])->name('export.formats');
-    Route::get('/export/templates', [ExportController::class, 'getAvailableTemplates'])->name('export.templates');
-    Route::post('/export/create-templates', [ExportController::class, 'createTemplatesFromExisting'])->name('export.create-templates');
+    Route::get('/documents/user-identity/suggestions', [DocumentController::class, 'getUserIdentitySuggestions'])->name('documents.user-identity-suggestions');
 
     // Export routes (Admin only)
     Route::middleware('admin')->group(function () {

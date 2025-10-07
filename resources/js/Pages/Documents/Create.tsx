@@ -87,10 +87,10 @@ export default function CreateDocument({ types, directions, availableRegistratio
   // Helper function to get opposite direction
   const getOppositeDirection = (direction: string): string | null => {
     const oppositeMap: Record<string, string> = {
-      'ID->ZH': 'ZH->ID',
-      'ZH->ID': 'ID->ZH',
-      'ID->TW': 'TW->ID',
-      'TW->ID': 'ID->TW'
+      'Indo-Mandarin': 'Mandarin-Indo',
+      'Mandarin-Indo': 'Indo-Mandarin',
+      'Indo-Taiwan': 'Taiwan-Indo',
+      'Taiwan-Indo': 'Indo-Taiwan'
     }
     return oppositeMap[direction] || null
   }

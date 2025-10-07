@@ -125,7 +125,9 @@ class DocumentController extends Controller
             ->map(function ($reg) {
                 // Tambahkan informasi tentang dokumen yang sudah ada
                 $existingDocs = $reg->documents()->get(['direction']);
-                $reg->existing_directions = $existingDocs->pluck('direction')->toArray();
+                $reg->existing_directions = $existingDocs->pluck('direction')
+                    ->map(fn($direction) => DirectionHelper::convertToNewFormat($direction))
+                    ->toArray();
                 return $reg;
             });
 
@@ -428,7 +430,8 @@ class DocumentController extends Controller
             // Update registration state
             $this->regSvc->refreshState($reg);
 
-            if (request()->wantsJson()) {
+            // Always return JSON response for API requests
+            if (request()->wantsJson() || request()->ajax()) {
                 return response()->json(['message' => 'Dokumen berhasil dihapus.']);
             }
 
@@ -461,12 +464,15 @@ class DocumentController extends Controller
     public function getUserIdentitySuggestions(Request $request)
     {
         $query = $request->get('q', '');
+        $user = $request->user();
 
         if (empty($query)) {
             return response()->json([]);
         }
 
-        $suggestions = Document::whereNotNull('user_identity')
+        // Only get suggestions from documents owned by the current user
+        $suggestions = Document::where('owner_user_id', $user->id)
+            ->whereNotNull('user_identity')
             ->where('user_identity', 'like', '%' . $query . '%')
             ->distinct()
             ->pluck('user_identity')
@@ -500,35 +506,65 @@ class DocumentController extends Controller
         $selectedIds = $request->get('ids', '');
         $ids = $selectedIds ? explode(',', $selectedIds) : [];
 
-        // Build query - admin can export all documents
-        $query = Document::with(['registration', 'type', 'owner']);
+        // Build query - admin can export all documents, but only SUBMITTED status
+        $query = Document::with(['registration', 'type', 'owner'])
+            ->where('status', 'SUBMITTED'); // Only export submitted documents
 
         // Filter by selected IDs if provided
         if (!empty($ids)) {
             $query->whereIn('id', $ids);
         }
 
+        // Apply filters
+        if ($request->has('directions') && is_array($request->directions) && !empty($request->directions)) {
+            $query->whereIn('direction', $request->directions);
+        }
+
+        if ($request->has('start_date')) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->has('end_date')) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
         // Get documents
         $documents = $query->get();
+
+        // Check if any documents found
+        if ($documents->isEmpty()) {
+            return response()->json([
+                'error' => 'No documents found matching the selected criteria.'
+            ], 404);
+        }
 
         // Validate direction combinations
         $directions = $documents->pluck('direction')->unique()->values()->toArray();
 
+        // Convert database directions to new format for validation
+        $newFormatDirections = array_map(function ($direction) {
+            return DirectionHelper::convertToNewFormat($direction);
+        }, $directions);
+
         // Check if directions are compatible for export
         $compatibleGroups = [
-            ['mandarin-indo', 'taiwan-indo'], // Both use mandarin-indo template
-            ['indo-mandarin', 'indo-taiwan'], // Both use indo-mandarin template
+            ['Mandarin-Indo', 'Taiwan-Indo'], // Both use mandarin-indo template
+            ['Indo-Mandarin', 'Indo-Taiwan'], // Both use indo-mandarin template
         ];
 
         $isCompatible = false;
         foreach ($compatibleGroups as $group) {
-            if (count(array_intersect($directions, $group)) === count($directions)) {
+            // Check if all selected directions are in the same compatible group
+            if (
+                count(array_intersect($newFormatDirections, $group)) === count($newFormatDirections) &&
+                count($newFormatDirections) === count(array_intersect($newFormatDirections, $group))
+            ) {
                 $isCompatible = true;
                 break;
             }
         }
 
-        if (!$isCompatible && count($directions) > 1) {
+        if (!$isCompatible && count($newFormatDirections) > 1) {
             return response()->json([
                 'error' => 'Selected documents have incompatible directions. You can only export documents with compatible directions: Mandarin-Indo + Taiwan-Indo OR Indo-Mandarin + Indo-Taiwan.'
             ], 400);
@@ -536,29 +572,27 @@ class DocumentController extends Controller
 
         // Determine template direction
         $templateDirection = null;
-        if (in_array('mandarin-indo', $directions) || in_array('taiwan-indo', $directions)) {
+        if (in_array('Mandarin-Indo', $newFormatDirections) || in_array('Taiwan-Indo', $newFormatDirections)) {
             $templateDirection = 'mandarin-indo';
-        } elseif (in_array('indo-mandarin', $directions) || in_array('indo-taiwan', $directions)) {
+        } elseif (in_array('Indo-Mandarin', $newFormatDirections) || in_array('Indo-Taiwan', $newFormatDirections)) {
             $templateDirection = 'indo-mandarin';
         } else {
-            $templateDirection = $directions[0] ?? 'mandarin-indo';
+            $templateDirection = 'mandarin-indo'; // Default fallback
         }
 
         // Generate export using template service
         try {
-            $startDate = $documents->min('created_at')->format('Y-m-d');
-            $endDate = $documents->max('created_at')->format('Y-m-d');
+            $startDate = $documents->min('created_at');
+            $endDate = $documents->max('created_at');
 
-            $filePath = $this->templateService->generateRepertoriumFromTemplate(
+            $result = $this->templateService->generateRepertoriumFromTemplate(
+                $documents->toArray(),
                 $templateDirection,
                 $startDate,
-                $endDate,
-                $documents->toArray()
+                $endDate
             );
 
-            $filename = "repertorium_{$templateDirection}_" . now()->format('Y_m_d_H_i_s') . ".docx";
-
-            return response()->download($filePath, $filename)->deleteFileAfterSend(true);
+            return response()->download($result['path'], $result['filename'])->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Export failed: ' . $e->getMessage()

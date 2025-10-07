@@ -65,6 +65,7 @@ export default function UsersEdit({ user, errors }: Props) {
                 toast({
                     title: "Success",
                     description: "User updated successfully.",
+                    variant: "success",
                 })
             },
         })

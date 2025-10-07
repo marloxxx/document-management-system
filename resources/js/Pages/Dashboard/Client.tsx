@@ -69,6 +69,7 @@ export default function ClientDashboard({
             toast({
               title: "Success",
               description: "New registration number issued successfully",
+              variant: "success",
             })
             // Refresh the dashboard to show updated data
             router.reload()
