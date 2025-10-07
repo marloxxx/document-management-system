@@ -94,22 +94,31 @@ class RegistrationController extends Controller
         }
     }
 
-    public function issue(Request $r): \Illuminate\Http\JsonResponse
+    public function issue(Request $r): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
     {
         $user = $r->user();
 
         if (!$user) {
-            return response()->json([
-                'error' => 'User not authenticated'
-            ], 401);
+            if ($r->expectsJson() || $r->wantsJson()) {
+                return response()->json([
+                    'error' => 'User not authenticated'
+                ], 401);
+            }
+            return redirect()->back()->withErrors(['error' => 'User not authenticated']);
         }
 
         $reg = $this->regSvc->issue($user);
-        return response()->json([
-            'number' => $reg->number,
-            'registration_id' => $reg->id,
-            'state' => $reg->state
-        ]);
+
+        if ($r->expectsJson() || $r->wantsJson()) {
+            return response()->json([
+                'number' => $reg->number,
+                'registration_id' => $reg->id,
+                'state' => $reg->state
+            ]);
+        }
+
+        // For Inertia requests, redirect back with success message
+        return redirect()->back()->with('success', 'Registration number issued successfully: ' . $reg->number);
     }
 
     public function preview(): \Illuminate\Http\JsonResponse

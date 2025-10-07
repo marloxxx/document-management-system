@@ -1,7 +1,7 @@
 "use client"
 
 import type * as React from "react"
-import { Head, useForm, Link } from "@inertiajs/react"
+import { Head, useForm, Link, router } from "@inertiajs/react"
 import AppLayout from "@/Layouts/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, FileText, Save, AlertCircle, BookOpen } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { DatePicker } from "@/components/ui/date-picker"
 
@@ -36,8 +36,9 @@ interface Props {
 
 export default function CreateDocument({ types, directions, availableRegistrations, errors: _serverErrors }: Props) {
   const { toast } = useToast()
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const { data, setData, post, processing, errors, reset } = useForm({
+  const { data, setData, processing, reset } = useForm({
     registration_number: "",
     direction: "",
     document_type_id: "",
@@ -51,8 +52,8 @@ export default function CreateDocument({ types, directions, availableRegistratio
   })
 
   useEffect(() => {
-    if (errors && Object.keys(errors).length > 0) {
-      Object.entries(errors).forEach(([field, message]) => {
+    if (formErrors && Object.keys(formErrors).length > 0) {
+      Object.entries(formErrors).forEach(([field, message]) => {
         toast({
           variant: "destructive",
           title: "Validation Error",
@@ -60,7 +61,7 @@ export default function CreateDocument({ types, directions, availableRegistratio
         })
       })
     }
-  }, [errors])
+  }, [formErrors])
 
   const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
     e.preventDefault()
@@ -93,10 +94,11 @@ export default function CreateDocument({ types, directions, availableRegistratio
       formData.append("evidence", data.evidence)
     }
 
-    post("/documents", {
+    router.post("/documents", formData, {
       forceFormData: true,
       preserveScroll: true,
       onSuccess: () => {
+        setFormErrors({}) // Clear errors on success
         toast({
           title: "Success",
           description: isDraft ? "Document saved as draft" : "Document created successfully",
@@ -104,7 +106,8 @@ export default function CreateDocument({ types, directions, availableRegistratio
         })
         reset()
       },
-      onError: () => {
+      onError: (errors) => {
+        setFormErrors(errors) // Set errors from server
         toast({
           variant: "destructive",
           title: "Error",
@@ -155,8 +158,12 @@ export default function CreateDocument({ types, directions, availableRegistratio
                     value={data.registration_number}
                     onValueChange={(value) => setData("registration_number", value)}
                   >
-                    <SelectTrigger className={`w-full ${errors.registration_number ? "border-destructive" : ""}`}>
-                      <SelectValue placeholder="Select registration number" />
+                    <SelectTrigger className={`w-full ${formErrors.registration_number ? "border-destructive" : ""}`}>
+                      <SelectValue placeholder="Select registration number">
+                        {data.registration_number && (
+                          <span className="truncate">{data.registration_number}</span>
+                        )}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {availableRegistrations.length === 0 ? (
@@ -164,16 +171,33 @@ export default function CreateDocument({ types, directions, availableRegistratio
                       ) : (
                         availableRegistrations.map((reg) => (
                           <SelectItem key={reg.id} value={reg.number}>
-                            <div className="flex flex-col">
-                              <span>{reg.number} ({reg.state})</span>
+                            <div className="flex flex-col min-w-0 w-full">
+                              <span className="font-medium truncate">{reg.number}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${reg.state === 'ISSUED' ? 'bg-green-100 text-green-800' :
+                                  reg.state === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                  {reg.state === 'ISSUED' ? 'New' :
+                                    reg.state === 'PARTIAL' ? 'Partial' : reg.state}
+                                </span>
+                              </div>
                               {reg.existing_directions && reg.existing_directions.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  Existing: {reg.existing_directions.join(', ')}
+                                <span className="text-xs text-muted-foreground mt-1 truncate">
+                                  Existing: {reg.existing_directions.map(dir => {
+                                    const directionMap: Record<string, string> = {
+                                      'ID->ZH': 'Indonesia → Mandarin',
+                                      'ZH->ID': 'Mandarin → Indonesia',
+                                      'ID->TW': 'Indonesia → Taiwan',
+                                      'TW->ID': 'Taiwan → Indonesia'
+                                    }
+                                    return directionMap[dir] || dir
+                                  }).join(', ')}
                                 </span>
                               )}
                               {reg.state === 'PARTIAL' && (
-                                <span className="text-xs text-blue-600">
-                                  ✓ Available for opposite direction
+                                <span className="text-xs text-blue-600 mt-1 truncate">
+                                  ✓ Available for opposite language direction
                                 </span>
                               )}
                             </div>
@@ -182,10 +206,10 @@ export default function CreateDocument({ types, directions, availableRegistratio
                       )}
                     </SelectContent>
                   </Select>
-                  {errors.registration_number && (
+                  {formErrors.registration_number && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.registration_number}
+                      {formErrors.registration_number}
                     </p>
                   )}
                 </div>
@@ -195,24 +219,34 @@ export default function CreateDocument({ types, directions, availableRegistratio
                     Translation Direction <span className="text-destructive">*</span>
                   </Label>
                   <Select value={data.direction} onValueChange={(value) => setData("direction", value)}>
-                    <SelectTrigger className={`w-full ${errors.direction ? "border-destructive" : ""}`}>
+                    <SelectTrigger className={`w-full ${formErrors.direction ? "border-destructive" : ""}`}>
                       <SelectValue placeholder="Select direction" />
                     </SelectTrigger>
                     <SelectContent>
                       {directions.map((dir) => (
                         <SelectItem key={dir} value={dir}>
-                          {dir === "Indo-Mandarin" ? "Indonesian → Mandarin" :
-                            dir === "Mandarin-Indo" ? "Mandarin → Indonesian" :
-                              dir === "Indo-Taiwan" ? "Indonesian → Taiwanese" :
-                                "Taiwanese → Indonesian"}
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {dir === "Indo-Mandarin" ? "Indonesian → Mandarin" :
+                                dir === "Mandarin-Indo" ? "Mandarin → Indonesian" :
+                                  dir === "Indo-Taiwan" ? "Indonesian → Taiwanese" :
+                                    "Taiwanese → Indonesian"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {dir === "Indo-Mandarin" ? "Translation from Indonesian to Mandarin" :
+                                dir === "Mandarin-Indo" ? "Translation from Mandarin to Indonesian" :
+                                  dir === "Indo-Taiwan" ? "Translation from Indonesian to Taiwanese" :
+                                    "Translation from Taiwanese to Indonesian"}
+                            </span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.direction && (
+                  {formErrors.direction && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.direction}
+                      {formErrors.direction}
                     </p>
                   )}
                 </div>
@@ -268,12 +302,12 @@ export default function CreateDocument({ types, directions, availableRegistratio
                     min="1"
                     value={data.page_count}
                     onChange={(e) => setData("page_count", e.target.value)}
-                    className={errors.page_count ? "border-destructive" : ""}
+                    className={formErrors.page_count ? "border-destructive" : ""}
                   />
-                  {errors.page_count && (
+                  {formErrors.page_count && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.page_count}
+                      {formErrors.page_count}
                     </p>
                   )}
                 </div>
@@ -285,7 +319,7 @@ export default function CreateDocument({ types, directions, availableRegistratio
                 <DatePicker
                   value={data.issued_date}
                   onChange={(date) => setData("issued_date", date)}
-                  placeholder="Pilih tanggal terbit dokumen"
+                  placeholder="Select document issue date"
                 />
               </div>
 
@@ -306,10 +340,10 @@ export default function CreateDocument({ types, directions, availableRegistratio
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">Accepted: PDF, DOC, DOCX (Max 20MB)</p>
-                {errors.evidence && (
+                {formErrors.evidence && (
                   <p className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    {errors.evidence}
+                    {formErrors.evidence}
                   </p>
                 )}
               </div>
@@ -328,16 +362,16 @@ export default function CreateDocument({ types, directions, availableRegistratio
 
               {/* User Identity */}
               <div className="space-y-2">
-                <Label htmlFor="user_identity">Identitas Pengguna Jasa</Label>
+                <Label htmlFor="user_identity">User Identity</Label>
                 <Textarea
                   id="user_identity"
                   value={data.user_identity}
                   onChange={(e) => setData("user_identity", e.target.value)}
-                  placeholder="Masukkan identitas pengguna jasa (nama, alamat, dll)..."
+                  placeholder="Enter user identity information (name, address, etc.)..."
                   rows={3}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Informasi identitas lengkap pengguna jasa yang meminta terjemahan
+                  Complete identity information of the user requesting translation
                 </p>
               </div>
 

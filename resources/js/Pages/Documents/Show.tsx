@@ -1,6 +1,7 @@
 "use client"
 
 import { Head, Link } from "@inertiajs/react"
+import { route } from "ziggy-js"
 import AppLayout from "@/Layouts/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,10 +147,13 @@ export default function ShowDocument({ document }: Props) {
                 <div className="text-sm font-medium text-muted-foreground">Registration Details</div>
                 <div className="flex items-center gap-2">
                   <Hash className="h-4 w-4 text-muted-foreground" />
-                  <div className="font-mono text-sm">
-                    <div>Year: {document.registration_year}</div>
-                    <div>Month: {document.registration_month}</div>
-                    <div>Sequence: {document.registration_seq}</div>
+                  <div className="font-mono text-sm space-y-1">
+                    <div className="font-semibold text-base">{document.registration_number}</div>
+                    <div className="text-muted-foreground">
+                      <div>Year: {document.registration_year}</div>
+                      <div>Month: {document.registration_month}</div>
+                      <div>Sequence: {document.registration_seq}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -245,7 +249,7 @@ export default function ShowDocument({ document }: Props) {
                     </div>
                   </div>
                 </div>
-                <a href={`/storage/${document.evidence_path}`} target="_blank" rel="noopener noreferrer" download>
+                <a href={route("documents.evidence", document.id)} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm">
                     <Download className="mr-2 h-4 w-4" />
                     Download

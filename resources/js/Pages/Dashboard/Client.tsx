@@ -70,6 +70,8 @@ export default function ClientDashboard({
               title: "Success",
               description: "New registration number issued successfully",
             })
+            // Refresh the dashboard to show updated data
+            router.reload()
           },
           onError: () => {
             toast({
@@ -83,6 +85,11 @@ export default function ClientDashboard({
       )
     } catch (error) {
       setIssuingNumber(false)
+      toast({
+        title: "Error",
+        description: "Failed to issue registration number",
+        variant: "destructive",
+      })
     }
   }
 
@@ -202,7 +209,7 @@ export default function ClientDashboard({
                     <div>
                       <p className="font-mono font-semibold">{reg.number}</p>
                       <p className="text-xs text-muted-foreground">
-                        {reg.state === "ISSUED" ? "Unused" : "1 doc used"}
+                        {reg.state === "ISSUED" ? "Available for any language direction" : "1 document already used"}
                       </p>
                     </div>
                     {getStateBadge(reg.state)}

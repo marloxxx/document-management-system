@@ -29,10 +29,7 @@ interface Document {
     id: number
     name: string
   }
-  type: {
-    id: number
-    name: string
-  } | null
+  type: string | null // DataTables returns this as a string, not an object
   registration: {
     id: number
     number: string
@@ -63,7 +60,8 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
       cell: ({ row }) => {
         const document = row.original
         const title = row.getValue("title") as string | null
-        const typeName = document.type?.name || document.document_type_text
+        // Fix: document.type is a string, not an object with .name property
+        const typeName = document.type || document.document_type_text
 
         return (
           <div className="max-w-[250px]">
