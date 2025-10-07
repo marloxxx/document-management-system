@@ -586,7 +586,7 @@ class DocumentController extends Controller
             $endDate = $documents->max('created_at');
 
             $result = $this->templateService->generateRepertoriumFromTemplate(
-                $documents->toArray(),
+                $documents,
                 $templateDirection,
                 $startDate,
                 $endDate

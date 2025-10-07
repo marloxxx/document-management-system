@@ -4,6 +4,7 @@ namespace App\Services;
 
 use PhpOffice\PhpWord\TemplateProcessor;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class DocumentTemplateService
 {
@@ -25,7 +26,7 @@ class DocumentTemplateService
     public function generateRepertoriumFromTemplate($documents, $direction = 'mandarin-indo', $startDate = null, $endDate = null)
     {
         // Determine template file based on direction
-        $templateFile = $this->getTemplateFile($direction);
+        $templateFile = $this->templatePath . 'repertorium_template.docx';
 
         if (!file_exists($templateFile)) {
             throw new \Exception("Template file not found: {$templateFile}");
@@ -62,25 +63,6 @@ class DocumentTemplateService
     }
 
     /**
-     * Get template file path based on direction
-     */
-    private function getTemplateFile($direction)
-    {
-        // Map directions to template files
-        // Indo-Mandarin dan Indo-Taiwan menggunakan template yang sama (Indonesia ke bahasa lain)
-        // Mandarin-Indo dan Taiwan-Indo menggunakan template yang sama (bahasa lain ke Indonesia)
-        $templateFiles = [
-            'mandarin-indo' => 'repertorium_mandarin_indo_template.docx',
-            'indo-mandarin' => 'repertorium_indo_mandarin_template.docx',
-            'indo-taiwan' => 'repertorium_indo_mandarin_template.docx',  // Menggunakan template Indo-Mandarin
-            'taiwan-indo' => 'repertorium_mandarin_indo_template.docx'    // Menggunakan template Mandarin-Indo
-        ];
-
-        $templateName = $templateFiles[$direction] ?? 'repertorium_mandarin_indo_template.docx';
-        return $this->templatePath . $templateName;
-    }
-
-    /**
      * Set basic variables in template
      */
     private function setBasicVariables($templateProcessor, $direction, $startDate, $endDate)
@@ -114,6 +96,40 @@ class DocumentTemplateService
     }
 
     /**
+     * Replace placeholder directly in document XML
+     */
+    private function replacePlaceholderInDocument($templateProcessor, $placeholder, $value)
+    {
+        // This method attempts to replace placeholders directly in the document XML
+        // It's a fallback when the template processor can't find the placeholder
+
+        // Get the temporary file path
+        $tempFile = $templateProcessor->getTempFile();
+
+        if (!$tempFile || !file_exists($tempFile)) {
+            throw new \Exception("Temporary file not found");
+        }
+
+        // Use ZipArchive to modify the document.xml
+        $zip = new \ZipArchive();
+        if ($zip->open($tempFile) === TRUE) {
+            // Read document.xml
+            $content = $zip->getFromName('word/document.xml');
+
+            if ($content) {
+                // Replace the placeholder with the actual value
+                $searchPattern = '\${' . $placeholder . '}';
+                $content = str_replace($searchPattern, $value, $content);
+
+                // Write back to zip
+                $zip->addFromString('word/document.xml', $content);
+            }
+
+            $zip->close();
+        }
+    }
+
+    /**
      * Safely set value in template processor
      */
     private function setValueSafely($templateProcessor, $placeholder, $value)
@@ -123,7 +139,14 @@ class DocumentTemplateService
         } catch (\Exception $e) {
             // If placeholder doesn't exist, try to replace it in the document content
             // This is a fallback method for templates without proper placeholders
-            \Log::warning("Placeholder '{$placeholder}' not found in template, using fallback replacement");
+            Log::warning("Placeholder '{$placeholder}' not found in template, using fallback replacement");
+
+            // Try to replace the placeholder directly in the document XML
+            try {
+                $this->replacePlaceholderInDocument($templateProcessor, $placeholder, $value);
+            } catch (\Exception $e2) {
+                Log::warning("Failed to replace placeholder '{$placeholder}' in document: " . $e2->getMessage());
+            }
         }
     }
 
@@ -150,9 +173,33 @@ class DocumentTemplateService
         } catch (\Exception $e) {
             // If cloning fails, it means template doesn't have proper table placeholders
             // Log the error and continue with basic variables only
-            \Log::warning("Template doesn't have proper table placeholders: " . $e->getMessage());
-            
-            // Try alternative approach - create a simple text table at the end
+            Log::warning("Template doesn't have proper table placeholders: " . $e->getMessage());
+
+            // Try alternative approach - replace individual placeholders
+            $this->replaceTablePlaceholders($templateProcessor, $documents);
+        }
+    }
+
+    /**
+     * Replace table placeholders when template has individual placeholders but no cloneable rows
+     */
+    private function replaceTablePlaceholders($templateProcessor, $documents)
+    {
+        try {
+            $no = 1;
+            foreach ($documents as $document) {
+                // Try to replace individual placeholders
+                $this->setValueSafely($templateProcessor, "no#{$no}", $no);
+                $this->setValueSafely($templateProcessor, "registration_number#{$no}", $document->registration_number ?? 'N/A');
+                $this->setValueSafely($templateProcessor, "document_title#{$no}", $document->title ?? $document->document_type_text ?? 'N/A');
+                $this->setValueSafely($templateProcessor, "page_count#{$no}", $document->page_count ?? 1);
+                $this->setValueSafely($templateProcessor, "direction#{$no}", $this->formatDirection($document->direction ?? 'N/A'));
+                $this->setValueSafely($templateProcessor, "user_identity#{$no}", $document->user_identity ?? 'N/A');
+                $no++;
+            }
+        } catch (\Exception $e) {
+            Log::warning("Failed to replace table placeholders: " . $e->getMessage());
+            // Fall back to creating a text-based table
             $this->createFallbackTable($templateProcessor, $documents);
         }
     }
@@ -167,7 +214,7 @@ class DocumentTemplateService
             $tableContent = "\n\nDOKUMEN TERJEMAHAN:\n\n";
             $tableContent .= "No\tRegistration Number\tTitle\tPages\tDirection\tUser Identity\n";
             $tableContent .= str_repeat("-", 80) . "\n";
-            
+
             $no = 1;
             foreach ($documents as $document) {
                 $tableContent .= sprintf(
@@ -181,12 +228,51 @@ class DocumentTemplateService
                 );
                 $no++;
             }
-            
+
             // Try to add this content to the document
             $this->setValueSafely($templateProcessor, 'document_list', $tableContent);
-            
         } catch (\Exception $e) {
-            \Log::error("Failed to create fallback table: " . $e->getMessage());
+            Log::error("Failed to create fallback table: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Apply fallback replacements for hardcoded content in templates
+     */
+    private function applyFallbackReplacements($templateProcessor, $direction, $startDate, $endDate, $documents)
+    {
+        try {
+            // Replace hardcoded date range patterns
+            $dateRange = $this->getDateRange($startDate, $endDate);
+            $directionText = $this->getDirectionText($direction);
+
+            // Common patterns that might be hardcoded in templates
+            $replacements = [
+                'TERJEMAHAN BULAN JULI TAHUN 2025 s.d BULAN SEPTEMBER TAHUN 2025' => $dateRange,
+            ];
+
+            // Only replace the direction text that matches the current direction
+            $directionMap = [
+                'mandarin-indo' => 'BAHASA MANDARIN – BAHASA INDONESIA',
+                'indo-mandarin' => 'BAHASA INDONESIA – BAHASA MANDARIN',
+                'indo-taiwan' => 'BAHASA INDONESIA – BAHASA TAIWAN',
+                'taiwan-indo' => 'BAHASA TAIWAN – BAHASA INDONESIA'
+            ];
+
+            // Add direction-specific replacements
+            foreach ($directionMap as $dir => $text) {
+                if ($dir === $direction) {
+                    $replacements[$text] = $directionText;
+                }
+            }
+
+            // Apply replacements using setValue method
+            foreach ($replacements as $search => $replace) {
+                // Try to set as a placeholder first
+                $this->setValueSafely($templateProcessor, $search, $replace);
+            }
+        } catch (\Exception $e) {
+            Log::warning("Failed to apply fallback replacements: " . $e->getMessage());
         }
     }
 
@@ -352,5 +438,61 @@ class DocumentTemplateService
         }
 
         return $templates;
+    }
+
+    /**
+     * Create a new template with proper placeholders
+     */
+    public function createNewTemplate($direction = 'mandarin-indo')
+    {
+        try {
+            $templateContent = $this->generateTemplateContent($direction);
+            $filename = "repertorium_{$direction}_template_new.docx";
+            $filePath = $this->templatePath . $filename;
+
+            // Create a simple DOCX file with the content
+            file_put_contents($filePath, $templateContent);
+
+            return [
+                'success' => true,
+                'message' => "New template created: {$filename}",
+                'path' => $filePath
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create template: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Generate template content with proper placeholders
+     */
+    private function generateTemplateContent($direction)
+    {
+        $directionText = $this->getDirectionText($direction);
+
+        $content = "BUKU REPERTORIUM TERJEMAHAN\n\n";
+        $content .= "Arah Terjemahan: {$directionText}\n";
+        $content .= "Periode: \${date_range}\n";
+        $content .= "Tanggal Dibuat: \${current_date}\n\n";
+        $content .= "DAFTAR DOKUMEN TERJEMAHAN:\n\n";
+        $content .= "No\tRegistration Number\tJudul Dokumen\tJumlah Halaman\tArah Terjemahan\tIdentitas Penerjemah\n";
+        $content .= "1\t\${registration_number#1}\t\${document_title#1}\t\${page_count#1}\t\${direction#1}\t\${user_identity#1}\n";
+        $content .= "2\t\${registration_number#2}\t\${document_title#2}\t\${page_count#2}\t\${direction#2}\t\${user_identity#2}\n";
+        $content .= "3\t\${registration_number#3}\t\${document_title#3}\t\${page_count#3}\t\${direction#3}\t\${user_identity#3}\n";
+        $content .= "\n\nCatatan: Template ini menggunakan placeholder yang dapat diganti secara otomatis.\n";
+        $content .= "Placeholder yang tersedia:\n";
+        $content .= "- \${date_range}: Periode tanggal\n";
+        $content .= "- \${direction_text}: Arah terjemahan\n";
+        $content .= "- \${current_date}: Tanggal saat ini\n";
+        $content .= "- \${registration_number#N}: Nomor registrasi dokumen ke-N\n";
+        $content .= "- \${document_title#N}: Judul dokumen ke-N\n";
+        $content .= "- \${page_count#N}: Jumlah halaman dokumen ke-N\n";
+        $content .= "- \${direction#N}: Arah terjemahan dokumen ke-N\n";
+        $content .= "- \${user_identity#N}: Identitas penerjemah dokumen ke-N\n";
+
+        return $content;
     }
 }
