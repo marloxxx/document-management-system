@@ -19,6 +19,7 @@ interface Document {
   notes: string | null
   user_identity: string | null
   issued_date: string | null
+  issued_date_formatted?: string | null
   evidence_path: string | null
   evidence_mime: string | null
   evidence_size: number | null
@@ -164,11 +165,18 @@ export default function ShowDocument({ document }: Props) {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">
-                      {new Date(document.issued_date).toLocaleDateString("id-ID", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
+                      {document.issued_date_formatted
+                        ? new Date(document.issued_date_formatted).toLocaleDateString("id-ID", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                        : new Date(document.issued_date).toLocaleDateString("id-ID", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      }
                     </span>
                   </div>
                 </div>

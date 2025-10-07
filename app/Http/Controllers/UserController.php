@@ -172,6 +172,9 @@ class UserController extends Controller
     {
         // Prevent admin from deleting themselves
         if ($user->id === Auth::id()) {
+            if (request()->wantsJson()) {
+                return response()->json(['error' => 'You cannot delete your own account.'], 403);
+            }
             return redirect()->route('users.index')
                 ->with('error', 'You cannot delete your own account.');
         }
@@ -183,6 +186,10 @@ class UserController extends Controller
             'deleted_user_email' => $user->email,
             'deleted_user_role' => $user->role,
         ]);
+
+        if (request()->wantsJson()) {
+            return response()->json(['message' => 'User deleted successfully.']);
+        }
 
         return redirect()->route('users.index')
             ->with('success', 'User deleted successfully.');

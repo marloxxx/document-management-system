@@ -31,17 +31,26 @@ export const useActionHandler = () => {
         options?: { onSuccess?: () => void }
     ) => {
         try {
-            await router.delete(url, {
-                onSuccess: () => {
-                    toast.success(`${itemName} deleted successfully`)
-                    options?.onSuccess?.()
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
-                onError: () => {
-                    toast.error(`Failed to delete ${itemName}`)
-                }
+                credentials: 'same-origin',
             })
-        } catch (error) {
-            toast.error(`Failed to delete ${itemName}`)
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.error || 'Failed to delete item')
+            }
+
+            const data = await response.json()
+            toast.success(data.message || `${itemName} deleted successfully`)
+            options?.onSuccess?.()
+        } catch (error: any) {
+            toast.error(error.message || `Failed to delete ${itemName}`)
         }
     }
 

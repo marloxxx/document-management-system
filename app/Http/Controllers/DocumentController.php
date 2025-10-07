@@ -144,72 +144,35 @@ class DocumentController extends Controller
     {
         $user = $r->user();
 
-        // Check if this is a draft save
-        $isDraft = ($r->input('is_draft') === 'true' || $r->input('is_draft') === true || $r->input('is_draft') === 1);
-
-        // For draft, use more lenient validation - only validate format if data is provided
-        if ($isDraft) {
-            $validationRules = [
-                'registration_number'  => 'nullable|exists:registrations,number',
-                'direction'            => 'nullable|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
-                'document_type_id'     => 'nullable|exists:document_types,id',
-                'document_type_text'   => 'nullable|string|max:255',
-                'page_count'          => 'nullable|integer|min:1',
-                'title'               => 'nullable|string|max:255',
-                'notes'               => 'nullable|string',
-                'user_identity'       => 'nullable|string',
-                'issued_date'         => 'nullable|date',
-                'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
-                'is_draft'            => 'nullable|string',
-            ];
-        } else {
-            // For non-draft, use strict validation
-            $validationRules = [
-                'registration_number'  => 'required|exists:registrations,number',
-                'direction'            => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
-                'document_type_id'     => 'nullable|exists:document_types,id',
-                'document_type_text'   => 'nullable|string|max:255',
-                'page_count'          => 'required|integer|min:1',
-                'title'               => 'nullable|string|max:255',
-                'notes'               => 'nullable|string',
-                'user_identity'       => 'nullable|string',
-                'issued_date'         => 'nullable|date',
-                'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
-                'is_draft'            => 'nullable|string',
-            ];
-        }
+        // Strict validation for document creation
+        $validationRules = [
+            'registration_number'  => 'required|exists:registrations,number',
+            'direction'            => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
+            'document_type_id'     => 'nullable|exists:document_types,id',
+            'document_type_text'   => 'nullable|string|max:255',
+            'page_count'          => 'required|integer|min:1',
+            'title'               => 'nullable|string|max:255',
+            'notes'               => 'nullable|string',
+            'user_identity'       => 'nullable|string',
+            'issued_date'         => 'nullable|date',
+            'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
+        ];
 
         $data = $r->validate($validationRules);
 
-        // Convert direction to old format for database storage (only if direction is provided)
-        if (isset($data['direction']) && $data['direction']) {
-            $data['direction'] = DirectionHelper::convertToOldFormat($data['direction']);
-        }
+        // Convert direction to old format for database storage
+        $data['direction'] = DirectionHelper::convertToOldFormat($data['direction']);
 
-        // Determine status based on is_draft flag
-        $status = $isDraft ? 'DRAFT' : 'SUBMITTED';
-
-        unset($data['is_draft']); // Remove from data array
-
-        return DB::transaction(function () use ($data, $user, $status, $isDraft) {
-            // For draft, we might not have all required fields, so handle gracefully
-            if ($isDraft && (!isset($data['registration_number']) || !$data['registration_number'])) {
-                // For draft without registration number, we need to create a temporary registration or handle differently
-                // For now, we'll require at least registration number even for drafts
-                throw ValidationException::withMessages(['registration_number' => 'Registration number is required even for drafts.']);
-            }
-
+        return DB::transaction(function () use ($data, $user) {
             $reg = Registration::where('number', $data['registration_number'])->lockForUpdate()->firstOrFail();
 
-            // Only check for duplicates if we have both registration and direction
-            if (isset($data['direction']) && $data['direction']) {
-                $exists = $reg->documents()->where('direction', $data['direction'])->exists();
-                if ($exists) {
-                    throw ValidationException::withMessages(['direction' => 'Dokumen untuk arah ini pada nomor tersebut sudah ada.']);
-                }
+            // Check for duplicates
+            $exists = $reg->documents()->where('direction', $data['direction'])->exists();
+            if ($exists) {
+                throw ValidationException::withMessages(['direction' => 'Dokumen untuk arah ini pada nomor tersebut sudah ada.']);
             }
 
-            // Cek apakah registration masih bisa digunakan
+            // Check if registration can still be used
             if ($reg->state === 'COMMITTED') {
                 throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah lengkap (COMMITTED) dan tidak bisa ditambah dokumen lagi.']);
             }
@@ -222,15 +185,15 @@ class DocumentController extends Controller
                 'registration_year' => $reg->year,
                 'registration_month' => $reg->month,
                 'registration_seq' => $reg->seq,
-                'direction' => $data['direction'] ?? null,
+                'direction' => $data['direction'],
                 'document_type_id' => $data['document_type_id'] ?? null,
                 'document_type_text' => $data['document_type_text'] ?? null,
-                'page_count' => $data['page_count'] ?? null,
+                'page_count' => $data['page_count'],
                 'title' => $data['title'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'user_identity' => $data['user_identity'] ?? null,
                 'issued_date' => $data['issued_date'] ?? null,
-                'status' => $status,
+                'status' => 'SUBMITTED',
                 'created_by' => $user->id,
             ]);
 
@@ -247,7 +210,7 @@ class DocumentController extends Controller
             // Update state registration
             $this->regSvc->refreshState($reg);
 
-            return redirect()->route('documents.show', $doc->id)->with('ok', 'Dokumen tersimpan');
+            return redirect()->route('documents.show', $doc->id)->with('success', 'Dokumen berhasil dibuat.');
         });
     }
 
@@ -258,6 +221,11 @@ class DocumentController extends Controller
 
         // Convert direction to new format for frontend
         $document->direction = DirectionHelper::convertToNewFormat($document->direction);
+
+        // Format dates properly for frontend
+        if ($document->issued_date) {
+            $document->issued_date_formatted = $document->issued_date->format('Y-m-d');
+        }
 
         return Inertia::render('Documents/Show', ['document' => $document]);
     }
@@ -458,7 +426,11 @@ class DocumentController extends Controller
             // Update registration state
             $this->regSvc->refreshState($reg);
 
-            return redirect()->route('documents.index')->with('ok', 'Dokumen berhasil dihapus');
+            if (request()->wantsJson()) {
+                return response()->json(['message' => 'Dokumen berhasil dihapus.']);
+            }
+
+            return redirect()->route('documents.index')->with('success', 'Dokumen berhasil dihapus');
         });
     }
 

@@ -36,11 +36,10 @@ interface Props {
   filters?: {
     q?: string
   }
-  isAdmin: boolean
   errors?: Record<string, string>
 }
 
-export default function RegistrationsIndex({ isAdmin }: Props) {
+export default function RegistrationsIndex({ }: Props) {
   const dataTableRef = useRef<any>(null)
   const { toast } = useToast()
   const [isIssuing, setIsIssuing] = useState(false)
@@ -177,12 +176,10 @@ export default function RegistrationsIndex({ isAdmin }: Props) {
             <h1 className="text-3xl font-bold tracking-tight">Registrations</h1>
             <p className="text-muted-foreground">Manage registration numbers for documents</p>
           </div>
-          {isAdmin && (
-            <Button onClick={handleIssueNumber} disabled={isIssuing}>
-              <Plus className="mr-2 h-4 w-4" />
-              {isIssuing ? "Issuing..." : "Issue Number"}
-            </Button>
-          )}
+          <Button onClick={handleIssueNumber} disabled={isIssuing}>
+            <Plus className="mr-2 h-4 w-4" />
+            {isIssuing ? "Issuing..." : "Issue Number"}
+          </Button>
         </div>
 
         <Separator />

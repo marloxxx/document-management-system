@@ -56,7 +56,7 @@ export default function UsersIndex({ }: UsersIndexProps) {
             cell: ({ row }) => {
                 const role = row.getValue("role") as string
                 return (
-                    <Badge className={role === "ADMIN" ? "bg-brand-secondary" : "bg-muted-block"}>
+                    <Badge variant={role === "ADMIN" ? "default" : "secondary"}>
                         {role}
                     </Badge>
                 )

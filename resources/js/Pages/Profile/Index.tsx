@@ -1,5 +1,5 @@
 "use client"
-import { Head, useForm } from "@inertiajs/react"
+import { Head, useForm, usePage } from "@inertiajs/react"
 import AppLayout from "@/Layouts/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +9,10 @@ import { Separator } from "@/components/ui/separator"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Key, Activity, Calendar, Shield } from "lucide-react"
-import { useState } from "react"
+import { User, Key, Activity, Calendar, Shield, Eye, EyeOff } from "lucide-react"
+import { useState, useEffect } from "react"
 import { route } from "ziggy-js"
+import { useToast } from "@/hooks/use-toast"
 
 interface User {
     id: number
@@ -28,6 +29,11 @@ interface ProfileIndexProps {
 
 export default function ProfileIndex({ user }: ProfileIndexProps) {
     const [activeTab, setActiveTab] = useState("profile")
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+    const [showNewPassword, setShowNewPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+    const { toast } = useToast()
+    const { flash } = usePage().props as any
 
     // Profile update form
     const { data: profileData, setData: setProfileData, put: updateProfile, processing: profileProcessing, errors: profileErrors } = useForm({
@@ -42,6 +48,24 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
         password_confirmation: "",
     })
 
+    // Handle success messages
+    useEffect(() => {
+        if (flash.success) {
+            toast({
+                title: "Success",
+                description: flash.success,
+                variant: "success",
+            })
+        }
+        if (flash.error) {
+            toast({
+                title: "Error",
+                description: flash.error,
+                variant: "destructive",
+            })
+        }
+    }, [flash.success, flash.error, toast])
+
     const handleProfileUpdate = (e: React.FormEvent) => {
         e.preventDefault()
         updateProfile(route("profile.update"))
@@ -52,6 +76,18 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
         updatePassword(route("profile.password"), {
             onSuccess: () => {
                 resetPassword()
+                toast({
+                    title: "Success",
+                    description: "Password updated successfully.",
+                    variant: "success",
+                })
+            },
+            onError: () => {
+                toast({
+                    title: "Error",
+                    description: "Failed to update password. Please check your current password.",
+                    variant: "destructive",
+                })
             }
         })
     }
@@ -172,7 +208,7 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
                                     <div className="space-y-2">
                                         <Label>Role</Label>
                                         <div className="flex items-center gap-2">
-                                            <Badge className={user.role === "ADMIN" ? "bg-brand-secondary" : "bg-muted-block"}>
+                                            <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>
                                                 {user.role}
                                             </Badge>
                                         </div>
@@ -206,13 +242,28 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
                                 <form onSubmit={handlePasswordUpdate} className="space-y-6">
                                     <div className="space-y-2">
                                         <Label htmlFor="current_password">Current Password</Label>
-                                        <Input
-                                            id="current_password"
-                                            type="password"
-                                            value={passwordData.current_password}
-                                            onChange={(e) => setPasswordData("current_password", e.target.value)}
-                                            className={passwordErrors.current_password ? "border-red-500" : ""}
-                                        />
+                                        <div className="relative">
+                                            <Input
+                                                id="current_password"
+                                                type={showCurrentPassword ? "text" : "password"}
+                                                value={passwordData.current_password}
+                                                onChange={(e) => setPasswordData("current_password", e.target.value)}
+                                                className={passwordErrors.current_password ? "border-red-500 pr-10" : "pr-10"}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                            >
+                                                {showCurrentPassword ? (
+                                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                                )}
+                                            </Button>
+                                        </div>
                                         {passwordErrors.current_password && (
                                             <p className="text-sm text-red-500">{passwordErrors.current_password}</p>
                                         )}
@@ -221,13 +272,28 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
                                     <div className="grid gap-4 md:grid-cols-2">
                                         <div className="space-y-2">
                                             <Label htmlFor="password">New Password</Label>
-                                            <Input
-                                                id="password"
-                                                type="password"
-                                                value={passwordData.password}
-                                                onChange={(e) => setPasswordData("password", e.target.value)}
-                                                className={passwordErrors.password ? "border-red-500" : ""}
-                                            />
+                                            <div className="relative">
+                                                <Input
+                                                    id="password"
+                                                    type={showNewPassword ? "text" : "password"}
+                                                    value={passwordData.password}
+                                                    onChange={(e) => setPasswordData("password", e.target.value)}
+                                                    className={passwordErrors.password ? "border-red-500 pr-10" : "pr-10"}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                                >
+                                                    {showNewPassword ? (
+                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                    ) : (
+                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                </Button>
+                                            </div>
                                             {passwordErrors.password && (
                                                 <p className="text-sm text-red-500">{passwordErrors.password}</p>
                                             )}
@@ -235,13 +301,28 @@ export default function ProfileIndex({ user }: ProfileIndexProps) {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="password_confirmation">Confirm Password</Label>
-                                            <Input
-                                                id="password_confirmation"
-                                                type="password"
-                                                value={passwordData.password_confirmation}
-                                                onChange={(e) => setPasswordData("password_confirmation", e.target.value)}
-                                                className={passwordErrors.password_confirmation ? "border-red-500" : ""}
-                                            />
+                                            <div className="relative">
+                                                <Input
+                                                    id="password_confirmation"
+                                                    type={showConfirmPassword ? "text" : "password"}
+                                                    value={passwordData.password_confirmation}
+                                                    onChange={(e) => setPasswordData("password_confirmation", e.target.value)}
+                                                    className={passwordErrors.password_confirmation ? "border-red-500 pr-10" : "pr-10"}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                >
+                                                    {showConfirmPassword ? (
+                                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                    ) : (
+                                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                </Button>
+                                            </div>
                                             {passwordErrors.password_confirmation && (
                                                 <p className="text-sm text-red-500">{passwordErrors.password_confirmation}</p>
                                             )}

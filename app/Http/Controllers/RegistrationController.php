@@ -30,7 +30,6 @@ class RegistrationController extends Controller
             'filters' => [
                 'q' => $r->q,
             ],
-            'isAdmin' => $user->role === 'ADMIN',
         ]);
     }
 
@@ -59,7 +58,13 @@ class RegistrationController extends Controller
             // Apply search filter
             if ($request->filled('search.value')) {
                 $searchValue = $request->input('search.value');
-                $query->where('number', 'like', '%' . $searchValue . '%');
+                $query->where(function ($q) use ($searchValue) {
+                    $q->where('number', 'like', '%' . $searchValue . '%')
+                        ->orWhereHas('issuedTo', function ($userQuery) use ($searchValue) {
+                            $userQuery->where('name', 'like', '%' . $searchValue . '%')
+                                ->orWhere('email', 'like', '%' . $searchValue . '%');
+                        });
+                });
             }
 
             return DataTables::of($query)
