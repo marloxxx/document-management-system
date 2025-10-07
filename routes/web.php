@@ -7,11 +7,20 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect('/login');
 });
+
+// CSRF token route
+Route::get('/csrf-token', function () {
+    return response()->json([
+        'csrf_token' => csrf_token(),
+        '_token' => csrf_token()
+    ]);
+})->name('csrf-token');
 
 // Authentication routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -44,7 +53,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents/{document}', [DocumentController::class, 'update'])->name('documents.update.post');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
     Route::get('/documents/{document}/evidence', [DocumentController::class, 'downloadEvidence'])->name('documents.evidence');
-    Route::get('/documents/user-identity/suggestions', [DocumentController::class, 'getUserIdentitySuggestions'])->name('documents.user-identity-suggestions');
+    Route::get('/export/repertorium', [ExportController::class, 'exportRepertorium'])->name('export.repertorium');
+    Route::get('/export/formats', [ExportController::class, 'getExportFormats'])->name('export.formats');
+    Route::get('/export/templates', [ExportController::class, 'getAvailableTemplates'])->name('export.templates');
+    Route::post('/export/create-templates', [ExportController::class, 'createTemplatesFromExisting'])->name('export.create-templates');
+
+    // Export routes (Admin only)
+    Route::middleware('admin')->group(function () {
+        Route::get('/export/documents', [DocumentController::class, 'export'])->name('export.documents');
+    });
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {

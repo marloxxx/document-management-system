@@ -2,25 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use Inertia\Inertia;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Registration;
-use App\Services\RegistrationNumberService;
-use App\Helpers\DirectionHelper;
 use Illuminate\Http\Request;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Support\Facades\Auth;
+use App\Helpers\DirectionHelper;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
 use Yajra\DataTables\Facades\DataTables;
+use App\Services\DocumentTemplateService;
+use App\Services\RegistrationNumberService;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class DocumentController extends Controller
 {
     use AuthorizesRequests;
 
     public function __construct(
+        private DocumentTemplateService $templateService,
         private RegistrationNumberService $regSvc
     ) {}
 
@@ -478,5 +480,89 @@ class DocumentController extends Controller
             ->values();
 
         return response()->json($suggestions);
+    }
+
+    /**
+     * Export documents to Excel/CSV (Admin only)
+     */
+    public function export(Request $request)
+    {
+        $user = $request->user();
+
+        // Ensure only admin can export
+        if ($user->role !== 'ADMIN') {
+            return response()->json([
+                'error' => 'Only administrators can export documents.'
+            ], 403);
+        }
+
+        // Get selected document IDs from request
+        $selectedIds = $request->get('ids', '');
+        $ids = $selectedIds ? explode(',', $selectedIds) : [];
+
+        // Build query - admin can export all documents
+        $query = Document::with(['registration', 'type', 'owner']);
+
+        // Filter by selected IDs if provided
+        if (!empty($ids)) {
+            $query->whereIn('id', $ids);
+        }
+
+        // Get documents
+        $documents = $query->get();
+
+        // Validate direction combinations
+        $directions = $documents->pluck('direction')->unique()->values()->toArray();
+
+        // Check if directions are compatible for export
+        $compatibleGroups = [
+            ['mandarin-indo', 'taiwan-indo'], // Both use mandarin-indo template
+            ['indo-mandarin', 'indo-taiwan'], // Both use indo-mandarin template
+        ];
+
+        $isCompatible = false;
+        foreach ($compatibleGroups as $group) {
+            if (count(array_intersect($directions, $group)) === count($directions)) {
+                $isCompatible = true;
+                break;
+            }
+        }
+
+        if (!$isCompatible && count($directions) > 1) {
+            return response()->json([
+                'error' => 'Selected documents have incompatible directions. You can only export documents with compatible directions: Mandarin-Indo + Taiwan-Indo OR Indo-Mandarin + Indo-Taiwan.'
+            ], 400);
+        }
+
+        // Determine template direction
+        $templateDirection = null;
+        if (in_array('mandarin-indo', $directions) || in_array('taiwan-indo', $directions)) {
+            $templateDirection = 'mandarin-indo';
+        } elseif (in_array('indo-mandarin', $directions) || in_array('indo-taiwan', $directions)) {
+            $templateDirection = 'indo-mandarin';
+        } else {
+            $templateDirection = $directions[0] ?? 'mandarin-indo';
+        }
+
+        // Generate export using template service
+        try {
+            $startDate = $documents->min('created_at')->format('Y-m-d');
+            $endDate = $documents->max('created_at')->format('Y-m-d');
+
+            $filePath = $this->templateService->generateRepertoriumFromTemplate(
+                $templateDirection,
+                $startDate,
+                $endDate,
+                $documents->toArray()
+            );
+
+            $filename = "repertorium_{$templateDirection}_" . now()->format('Y_m_d_H_i_s') . ".docx";
+
+            return response()->download($filePath, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

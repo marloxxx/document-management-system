@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react'
 import { toast } from 'sonner'
+import { makeAPIRequest, handleAPIResponse } from '@/utils/api'
 
 export const useActionHandler = () => {
     const handleStatusToggle = async (
@@ -31,22 +32,11 @@ export const useActionHandler = () => {
         options?: { onSuccess?: () => void }
     ) => {
         try {
-            const response = await fetch(url, {
+            const response = await makeAPIRequest(url, {
                 method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                credentials: 'same-origin',
             })
 
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || 'Failed to delete item')
-            }
-
-            const data = await response.json()
+            const data = await handleAPIResponse(response)
             toast.success(data.message || `${itemName} deleted successfully`)
             options?.onSuccess?.()
         } catch (error: any) {
@@ -58,10 +48,25 @@ export const useActionHandler = () => {
         try {
             const ids = selectedRows.map(row => row.id).join(',')
             const url = `/export/${type}${ids ? `?ids=${ids}` : ''}`
+
+            // Use fetch to check for errors before opening window
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.error || 'Export failed')
+            }
+
+            // If successful, open the download
             window.open(url, '_blank')
             toast.success('Export started')
-        } catch (error) {
-            toast.error('Failed to start export')
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to start export')
         }
     }
 

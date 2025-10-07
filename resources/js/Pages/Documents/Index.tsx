@@ -203,8 +203,8 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
     },
   ]
 
-  // Action configurations
-  const actionConfigs = [
+  // Action configurations (Admin only)
+  const actionConfigs = isAdmin ? [
     {
       label: "Export",
       icon: Download,
@@ -224,7 +224,7 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
         handleBulkDelete(selectedRows || [], "documents")
       }
     }
-  ]
+  ] : []
 
   return (
     <AppLayout>

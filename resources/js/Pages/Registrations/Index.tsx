@@ -7,9 +7,10 @@ import AppLayout from "@/Layouts/AppLayout"
 import { ColumnDef } from "@tanstack/react-table"
 import { Separator } from "@/components/ui/separator"
 import { DataTable } from "@/components/DataTable"
+import { makeAPIRequest, handleAPIResponse } from "@/utils/api"
+import { useToast } from "@/hooks/use-toast"
 import { route } from "ziggy-js"
 import { RegistrationStateBadge } from "@/components/custom/status-badges"
-import { useToast } from "@/hooks/use-toast"
 
 interface Registration {
   id: number
@@ -47,21 +48,11 @@ export default function RegistrationsIndex({ }: Props) {
   const handleIssueNumber = async () => {
     setIsIssuing(true)
     try {
-      const response = await fetch(route("registrations.issue"), {
+      const response = await makeAPIRequest(route("registrations.issue"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "same-origin",
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to issue number')
-      }
+      const data = await handleAPIResponse(response)
 
       toast({
         title: "Success",
