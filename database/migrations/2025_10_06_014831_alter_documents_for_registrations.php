@@ -22,10 +22,10 @@ return new class extends Migration
             $table->string('registration_number')->nullable()->change(); // tidak lagi unique
         });
 
-        // tambahkan unique constraint hanya jika belum ada
-        if (!Schema::hasIndex('documents', 'documents_registration_id_direction_unique')) {
+        // tambahkan unique constraint: 1 registration = 1 document
+        if (!Schema::hasIndex('documents', 'documents_registration_id_unique')) {
             Schema::table('documents', function (Blueprint $table) {
-                $table->unique(['registration_id', 'direction']); // max 1 dokumen per direction per nomor
+                $table->unique('registration_id'); // Satu nomor registrasi hanya untuk satu dokumen
             });
         }
     }

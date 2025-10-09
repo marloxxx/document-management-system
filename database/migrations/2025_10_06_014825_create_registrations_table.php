@@ -17,7 +17,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('month');
             $table->unsignedInteger('seq');
             $table->string('number')->unique(); // e.g. "01/10/2025"
-            $table->enum('state', ['ISSUED', 'PARTIAL', 'COMMITTED', 'VOID'])->default('ISSUED');
+            $table->enum('state', ['ISSUED', 'COMMITTED', 'VOID'])->default('ISSUED');
             $table->foreignId('issued_to_user_id')->constrained('users');
             $table->timestamp('issued_at');
             $table->timestamp('expires_at')->nullable();
