@@ -37,8 +37,9 @@ class DocumentPolicy
      */
     public function update(User $user, Document $document): bool
     {
-        // Admin can edit any document, users can edit their own documents
-        return $user->role === 'ADMIN' || $document->owner_user_id === $user->id;
+        // Only document owner can edit their own documents
+        // Admin can only view, not edit
+        return $document->owner_user_id === $user->id;
     }
 
     /**
@@ -46,8 +47,9 @@ class DocumentPolicy
      */
     public function delete(User $user, Document $document): bool
     {
-        // Admin can delete any document, users can delete their own documents
-        return $user->role === 'ADMIN' || $document->owner_user_id === $user->id;
+        // Only document owner can delete their own documents
+        // Admin can only view, not delete
+        return $document->owner_user_id === $user->id;
     }
 
     /**

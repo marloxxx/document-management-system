@@ -15,9 +15,9 @@ import { useToast } from "@/hooks/use-toast"
 import { route } from "ziggy-js"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Checkbox } from "@/components/ui/checkbox"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -45,11 +45,18 @@ interface Document {
   }
 }
 
-interface DocumentsIndexProps {
-  isAdmin: boolean
+interface User {
+  id: number
+  name: string
+  role: string
 }
 
-export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
+interface DocumentsIndexProps {
+  isAdmin: boolean
+  users: User[]
+}
+
+export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) {
   const confirm = useConfirm()
   const { toast } = useToast()
   const dataTableRef = useRef<any>(null)
@@ -58,7 +65,7 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
   // Export dialog state
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [exportFilters, setExportFilters] = useState({
-    directions: [] as string[],
+    direction: '' as string, // Changed from directions array to single direction
     startDate: undefined as Date | undefined,
     endDate: undefined as Date | undefined,
   })
@@ -223,10 +230,25 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
         { value: "SUBMITTED", label: "Submitted" }
       ]
     },
+    // Client/Owner filter (admin only)
+    ...(isAdmin ? [{
+      key: "owner_user_id",
+      label: "Client",
+      type: "select" as const,
+      placeholder: "Select client",
+      options: [
+        { label: "All Clients", value: "all" },
+        ...users.map(user => ({
+          value: user.id.toString(),
+          label: `${user.name} (${user.role})`
+        }))
+      ]
+    }] : [])
   ]
 
-  // Action configurations (Admin only)
-  const actionConfigs = isAdmin ? [
+  // Action configurations
+  const actionConfigs = [
+    // Export button (available for both admin and client)
     {
       label: "Export",
       icon: Download,
@@ -236,7 +258,8 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
         handleExport(selectedRows || [], "documents")
       }
     },
-    {
+    // Bulk Delete (Admin only)
+    ...(isAdmin ? [{
       label: "Bulk Delete",
       icon: Trash2,
       variant: "destructive" as const,
@@ -245,43 +268,17 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
       onClick: (selectedRows?: any[]) => {
         handleBulkDelete(selectedRows || [], "documents")
       }
-    }
-  ] : []
+    }] : [])
+  ]
 
   // Handle export with filters
   const handleExportWithFilters = async () => {
     try {
-      // Validate direction compatibility
-      if (exportFilters.directions.length > 1) {
-        const compatibleGroups = [
-          ['mandarin-indo', 'taiwan-indo'],
-          ['indo-mandarin', 'indo-taiwan'],
-        ]
-
-        let isCompatible = false
-        for (const group of compatibleGroups) {
-          // Check if all selected directions are in the same compatible group
-          if (exportFilters.directions.every(dir => group.includes(dir))) {
-            isCompatible = true
-            break
-          }
-        }
-
-        if (!isCompatible) {
-          toast({
-            title: "Invalid Direction Selection",
-            description: "Selected directions are incompatible. You can only export documents with compatible directions: Mandarin-Indo + Taiwan-Indo OR Indo-Mandarin + Indo-Taiwan.",
-            variant: "destructive",
-          })
-          return
-        }
-      }
-
-      // Check if at least one direction is selected
-      if (exportFilters.directions.length === 0) {
+      // Check if direction is selected (admin only)
+      if (isAdmin && !exportFilters.direction) {
         toast({
-          title: "No Directions Selected",
-          description: "Please select at least one direction to export documents.",
+          title: "No Direction Selected",
+          description: "Please select a direction to export documents.",
           variant: "destructive",
         })
         return
@@ -289,11 +286,11 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
 
       const params = new URLSearchParams()
 
-      if (exportFilters.directions.length > 0) {
-        exportFilters.directions.forEach(direction => {
-          params.append('directions[]', direction)
-        })
+      // Add direction for admin only
+      if (isAdmin && exportFilters.direction) {
+        params.append('direction', exportFilters.direction)
       }
+
       if (exportFilters.startDate) {
         params.append('start_date', exportFilters.startDate.toISOString().split('T')[0])
       }
@@ -329,7 +326,7 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
 
       // Reset filters
       setExportFilters({
-        directions: [],
+        direction: '',
         startDate: undefined,
         endDate: undefined,
       })
@@ -375,227 +372,147 @@ export default function DocumentsIndex({ isAdmin }: DocumentsIndexProps) {
             </p>
           </div>
           <div className="flex gap-2">
-            {isAdmin && (
-              <Dialog open={isExportDialogOpen} onOpenChange={(open) => {
-                setIsExportDialogOpen(open)
-                if (!open) {
-                  // Reset calendar states when dialog closes
-                  setIsStartDateOpen(false)
-                  setIsEndDateOpen(false)
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Export Documents
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Export Documents</DialogTitle>
-                    <DialogDescription>
-                      Select filters to export submitted documents. Only documents with SUBMITTED status will be exported.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-start gap-4">
-                      <Label htmlFor="directions" className="text-right pt-2">
-                        Directions
+            <Dialog open={isExportDialogOpen} onOpenChange={(open) => {
+              setIsExportDialogOpen(open)
+              if (!open) {
+                // Reset calendar states when dialog closes
+                setIsStartDateOpen(false)
+                setIsEndDateOpen(false)
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export Documents
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Export Documents</DialogTitle>
+                  <DialogDescription>
+                    {isAdmin
+                      ? "Select filters to export submitted documents. Only documents with SUBMITTED status will be exported."
+                      : "Export your submitted documents. Only documents with SUBMITTED status will be exported."
+                    }
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {/* Direction filter - Admin only */}
+                  {isAdmin && (
+                    <div className="space-y-2">
+                      <Label htmlFor="direction">
+                        Arah Terjemahan <span className="text-destructive">*</span>
                       </Label>
-                      <div className="col-span-3 space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Select compatible directions. Incompatible options will be disabled automatically:
-                        </p>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="mandarin-indo"
-                              checked={exportFilters.directions.includes('mandarin-indo')}
-                              disabled={exportFilters.directions.some(d => ['indo-mandarin', 'indo-taiwan'].includes(d))}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: [...prev.directions, 'mandarin-indo']
-                                  }))
-                                } else {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: prev.directions.filter(d => d !== 'mandarin-indo')
-                                  }))
-                                }
-                              }}
-                            />
-                            <Label htmlFor="mandarin-indo" className={`text-sm ${exportFilters.directions.some(d => ['indo-mandarin', 'indo-taiwan'].includes(d)) ? 'text-muted-foreground' : ''}`}>
-                              Mandarin - Indo
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="taiwan-indo"
-                              checked={exportFilters.directions.includes('taiwan-indo')}
-                              disabled={exportFilters.directions.some(d => ['indo-mandarin', 'indo-taiwan'].includes(d))}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: [...prev.directions, 'taiwan-indo']
-                                  }))
-                                } else {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: prev.directions.filter(d => d !== 'taiwan-indo')
-                                  }))
-                                }
-                              }}
-                            />
-                            <Label htmlFor="taiwan-indo" className={`text-sm ${exportFilters.directions.some(d => ['indo-mandarin', 'indo-taiwan'].includes(d)) ? 'text-muted-foreground' : ''}`}>
-                              Taiwan - Indo
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="indo-mandarin"
-                              checked={exportFilters.directions.includes('indo-mandarin')}
-                              disabled={exportFilters.directions.some(d => ['mandarin-indo', 'taiwan-indo'].includes(d))}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: [...prev.directions, 'indo-mandarin']
-                                  }))
-                                } else {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: prev.directions.filter(d => d !== 'indo-mandarin')
-                                  }))
-                                }
-                              }}
-                            />
-                            <Label htmlFor="indo-mandarin" className={`text-sm ${exportFilters.directions.some(d => ['mandarin-indo', 'taiwan-indo'].includes(d)) ? 'text-muted-foreground' : ''}`}>
-                              Indo - Mandarin
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="indo-taiwan"
-                              checked={exportFilters.directions.includes('indo-taiwan')}
-                              disabled={exportFilters.directions.some(d => ['mandarin-indo', 'taiwan-indo'].includes(d))}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: [...prev.directions, 'indo-taiwan']
-                                  }))
-                                } else {
-                                  setExportFilters(prev => ({
-                                    ...prev,
-                                    directions: prev.directions.filter(d => d !== 'indo-taiwan')
-                                  }))
-                                }
-                              }}
-                            />
-                            <Label htmlFor="indo-taiwan" className={`text-sm ${exportFilters.directions.some(d => ['mandarin-indo', 'taiwan-indo'].includes(d)) ? 'text-muted-foreground' : ''}`}>
-                              Indo - Taiwan
-                            </Label>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Compatible combinations: Mandarin-Indo + Taiwan-Indo OR Indo-Mandarin + Indo-Taiwan
-                        </p>
-                      </div>
+                      <Select
+                        value={exportFilters.direction}
+                        onValueChange={(value) => {
+                          setExportFilters(prev => ({
+                            ...prev,
+                            direction: value
+                          }))
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Pilih arah terjemahan" />
+                        </SelectTrigger>
+                        <SelectContent className="max-w-md">
+                          <SelectItem value="indo-mandarin">
+                            <div className="flex flex-col gap-0.5 py-1">
+                              <span className="font-semibold text-sm">Indo → Mandarin</span>
+                              <span className="text-xs text-muted-foreground line-clamp-2">
+                                Export: Indo-Mandarin + Indo-Taiwan
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="mandarin-indo">
+                            <div className="flex flex-col gap-0.5 py-1">
+                              <span className="font-semibold text-sm">Mandarin → Indo</span>
+                              <span className="text-xs text-muted-foreground line-clamp-2">
+                                Export: Mandarin-Indo + Taiwan-Indo
+                              </span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-amber-600 line-clamp-2">
+                        Taiwan variants akan otomatis di-include dan ditampilkan sebagai Mandarin
+                      </p>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="startDate" className="text-right">
-                        Start Date
-                      </Label>
-                      <Popover open={isStartDateOpen} onOpenChange={setIsStartDateOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "col-span-3 justify-start text-left font-normal",
-                              !exportFilters.startDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {exportFilters.startDate ? format(exportFilters.startDate, "PPP") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100]"
-                          align="start"
-                          onInteractOutside={(e) => {
-                            // Prevent closing when clicking inside the calendar
-                            e.preventDefault()
-                          }}
-                          style={{ pointerEvents: 'auto' }}
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate">
+                      Tanggal Mulai (Opsional)
+                    </Label>
+                    <Popover open={isStartDateOpen} onOpenChange={setIsStartDateOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !exportFilters.startDate && "text-muted-foreground"
+                          )}
                         >
-                          <Calendar
-                            mode="single"
-                            selected={exportFilters.startDate}
-                            onSelect={(date) => {
-                              setExportFilters(prev => ({ ...prev, startDate: date }))
-                              setIsStartDateOpen(false)
-                            }}
-                            disabled={(date) => date > new Date()}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="endDate" className="text-right">
-                        End Date
-                      </Label>
-                      <Popover open={isEndDateOpen} onOpenChange={setIsEndDateOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "col-span-3 justify-start text-left font-normal",
-                              !exportFilters.endDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {exportFilters.endDate ? format(exportFilters.endDate, "PPP") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100]"
-                          align="start"
-                          onInteractOutside={(e) => {
-                            // Prevent closing when clicking inside the calendar
-                            e.preventDefault()
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {exportFilters.startDate ? format(exportFilters.startDate, "PPP") : "Pilih tanggal mulai"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={exportFilters.startDate}
+                          onSelect={(date) => {
+                            setExportFilters(prev => ({ ...prev, startDate: date }))
+                            setIsStartDateOpen(false)
                           }}
-                          style={{ pointerEvents: 'auto' }}
-                        >
-                          <Calendar
-                            mode="single"
-                            selected={exportFilters.endDate}
-                            onSelect={(date) => {
-                              setExportFilters(prev => ({ ...prev, endDate: date }))
-                              setIsEndDateOpen(false)
-                            }}
-                            disabled={(date) => date > new Date()}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                          disabled={(date) => date > new Date()}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleExportWithFilters}>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Export
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">
+                      Tanggal Selesai (Opsional)
+                    </Label>
+                    <Popover open={isEndDateOpen} onOpenChange={setIsEndDateOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !exportFilters.endDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {exportFilters.endDate ? format(exportFilters.endDate, "PPP") : "Pilih tanggal selesai"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={exportFilters.endDate}
+                          onSelect={(date) => {
+                            setExportFilters(prev => ({ ...prev, endDate: date }))
+                            setIsEndDateOpen(false)
+                          }}
+                          disabled={(date) => date > new Date()}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleExportWithFilters}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Link href={route("documents.create")}>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />

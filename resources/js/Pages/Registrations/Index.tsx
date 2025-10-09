@@ -18,7 +18,7 @@ interface Registration {
   year: number
   month: number
   seq: number
-  state: "ISSUED" | "PARTIAL" | "COMMITTED" | "VOID"
+  state: "ISSUED" | "COMMITTED" | "VOID"
   created_at: string
   issued_to: {
     id: number
@@ -106,7 +106,7 @@ export default function RegistrationsIndex({ }: Props) {
       accessorKey: "state",
       header: "State",
       cell: ({ row }) => {
-        const state = row.getValue("state") as "ISSUED" | "PARTIAL" | "COMMITTED" | "VOID"
+        const state = row.getValue("state") as "ISSUED" | "COMMITTED" | "VOID"
         return <RegistrationStateBadge state={state} />
       },
       enableSorting: false,
@@ -119,7 +119,7 @@ export default function RegistrationsIndex({ }: Props) {
         const documents = Array.isArray(registration.documents) ? registration.documents : []
         return (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{documents.length} / 2</span>
+            <span className="text-sm font-medium">{documents.length} / 1</span>
             {documents.length > 0 && (
               <div className="flex gap-1">
                 {documents.map((doc) => (

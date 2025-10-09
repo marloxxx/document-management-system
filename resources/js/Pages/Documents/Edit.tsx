@@ -55,7 +55,6 @@ interface Registration {
     id: number
     number: string
     state: string
-    existing_directions?: string[]
 }
 
 interface Props {
@@ -69,7 +68,6 @@ interface Props {
 export default function EditDocument({ document, types, directions, availableRegistrations, errors: _serverErrors }: Props) {
     const { toast } = useToast()
     const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-    const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null)
 
     const { data, setData, processing } = useForm({
         registration_number: document.registration_number,
@@ -96,36 +94,6 @@ export default function EditDocument({ document, types, directions, availableReg
             })
         }
     }, [formErrors])
-
-    // Update selected registration when registration number changes
-    useEffect(() => {
-        if (data.registration_number) {
-            const reg = availableRegistrations.find(r => r.number === data.registration_number)
-            setSelectedRegistration(reg || null)
-
-            // Auto-select opposite direction for PARTIAL status
-            if (reg && reg.state === 'PARTIAL' && reg.existing_directions && reg.existing_directions.length > 0) {
-                const existingDirection = reg.existing_directions[0] // Get the first existing direction
-                const oppositeDirection = getOppositeDirection(existingDirection)
-                if (oppositeDirection && !data.direction) {
-                    setData("direction", oppositeDirection as "Indo-Mandarin" | "Mandarin-Indo" | "Indo-Taiwan" | "Taiwan-Indo")
-                }
-            }
-        } else {
-            setSelectedRegistration(null)
-        }
-    }, [data.registration_number, availableRegistrations])
-
-    // Helper function to get opposite direction
-    const getOppositeDirection = (direction: string): string | null => {
-        const oppositeMap: Record<string, string> = {
-            'Indo-Mandarin': 'Mandarin-Indo',
-            'Mandarin-Indo': 'Indo-Mandarin',
-            'Indo-Taiwan': 'Taiwan-Indo',
-            'Taiwan-Indo': 'Indo-Taiwan'
-        }
-        return oppositeMap[direction] || null
-    }
 
     const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
         e.preventDefault()
@@ -234,33 +202,15 @@ export default function EditDocument({ document, types, directions, availableReg
                                             ) : (
                                                 availableRegistrations.map((reg) => (
                                                     <SelectItem key={reg.id} value={reg.number}>
-                                                        <div className="flex flex-col min-w-0 w-full">
-                                                            <span className="font-medium truncate">{reg.number}</span>
-                                                            <div className="flex items-center gap-2 text-xs">
-                                                                <span className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${reg.state === 'ISSUED' ? 'bg-green-100 text-green-800' :
-                                                                    reg.state === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
-                                                                        'bg-gray-100 text-gray-800'
-                                                                    }`}>
-                                                                    {reg.state === 'ISSUED' ? 'New' :
-                                                                        reg.state === 'PARTIAL' ? 'Partial' : reg.state}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium">{reg.number}</span>
+                                                            {reg.state === 'ISSUED' ? (
+                                                                <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">
+                                                                    Available
                                                                 </span>
-                                                            </div>
-                                                            {reg.existing_directions && reg.existing_directions.length > 0 && (
-                                                                <span className="text-xs text-muted-foreground mt-1 truncate">
-                                                                    Existing: {reg.existing_directions.map(dir => {
-                                                                        const directionMap: Record<string, string> = {
-                                                                            'Indo-Mandarin': 'Indonesia → Mandarin',
-                                                                            'Mandarin-Indo': 'Mandarin → Indonesia',
-                                                                            'Indo-Taiwan': 'Indonesia → Taiwan',
-                                                                            'Taiwan-Indo': 'Taiwan → Indonesia'
-                                                                        }
-                                                                        return directionMap[dir] || dir
-                                                                    }).join(', ')}
-                                                                </span>
-                                                            )}
-                                                            {reg.state === 'PARTIAL' && (
-                                                                <span className="text-xs text-blue-600 mt-1 truncate">
-                                                                    ✓ Available for opposite language direction
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                                                                    Current
                                                                 </span>
                                                             )}
                                                         </div>
@@ -274,51 +224,6 @@ export default function EditDocument({ document, types, directions, availableReg
                                             <AlertCircle className="h-3 w-3" />
                                             {formErrors.registration_number}
                                         </p>
-                                    )}
-
-                                    {/* Additional information for PARTIAL status */}
-                                    {selectedRegistration && selectedRegistration.state === 'PARTIAL' && (
-                                        <Alert className="mt-2">
-                                            <AlertCircle className="h-4 w-4" />
-                                            <AlertDescription>
-                                                <div className="space-y-1">
-                                                    <p className="font-medium text-yellow-800">Registration Status: Partial</p>
-                                                    <p className="text-sm text-yellow-700">
-                                                        This registration number has been used for one direction.
-                                                        You can create another document with the opposite direction.
-                                                    </p>
-                                                    {selectedRegistration.existing_directions && selectedRegistration.existing_directions.length > 0 && (
-                                                        <div className="text-sm text-yellow-700">
-                                                            <span className="font-medium">Existing directions:</span>{" "}
-                                                            {selectedRegistration.existing_directions.map(dir => {
-                                                                const directionMap: Record<string, string> = {
-                                                                    'Indo-Mandarin': 'Indonesia → Mandarin',
-                                                                    'Mandarin-Indo': 'Mandarin → Indonesia',
-                                                                    'Indo-Taiwan': 'Indonesia → Taiwan',
-                                                                    'Taiwan-Indo': 'Taiwan → Indonesia'
-                                                                }
-                                                                return directionMap[dir] || dir
-                                                            }).join(', ')}
-                                                        </div>
-                                                    )}
-                                                    {data.direction && (
-                                                        <div className="text-sm text-green-700 font-medium">
-                                                            ✓ Translation direction automatically selected: {
-                                                                (() => {
-                                                                    const directionMap: Record<string, string> = {
-                                                                        'Indo-Mandarin': 'Indonesia → Mandarin',
-                                                                        'Mandarin-Indo': 'Mandarin → Indonesia',
-                                                                        'Indo-Taiwan': 'Indonesia → Taiwan',
-                                                                        'Taiwan-Indo': 'Taiwan → Indonesia'
-                                                                    }
-                                                                    return directionMap[data.direction] || data.direction
-                                                                })()
-                                                            }
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </AlertDescription>
-                                        </Alert>
                                     )}
                                 </div>
 

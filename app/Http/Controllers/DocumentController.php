@@ -6,6 +6,7 @@ use Inertia\Inertia;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Registration;
+use App\Models\User;
 use Illuminate\Http\Request;
 use App\Helpers\DirectionHelper;
 use Illuminate\Support\Facades\DB;
@@ -34,8 +35,15 @@ class DocumentController extends Controller
             return $this->getDataTableData($r);
         }
 
+        // Get all users for filter (admin only)
+        $users = [];
+        if ($user->role === 'ADMIN') {
+            $users = User::orderBy('name')->get(['id', 'name', 'role']);
+        }
+
         return Inertia::render('Documents/Index', [
             'isAdmin' => $user->role === 'ADMIN',
+            'users' => $users,
         ]);
     }
 
@@ -70,6 +78,11 @@ class DocumentController extends Controller
 
             if ($r->has('status') && $r->status !== 'all') {
                 $query->where('status', $r->status);
+            }
+
+            // Filter by owner/client (admin only)
+            if ($user->role === 'ADMIN' && $r->has('owner_user_id') && $r->owner_user_id !== 'all') {
+                $query->where('owner_user_id', $r->owner_user_id);
             }
 
             // Apply search
@@ -116,20 +129,12 @@ class DocumentController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        // Ambil registrations yang bisa digunakan (ISSUED atau PARTIAL)
-        // PARTIAL berarti masih bisa ditambah dokumen dengan arah yang berbeda
+        // Ambil registrations yang bisa digunakan (ISSUED saja)
+        // Satu nomor registrasi hanya untuk satu dokumen
         $availableRegistrations = Registration::where('issued_to_user_id', $user->id)
-            ->whereIn('state', ['ISSUED', 'PARTIAL'])
+            ->where('state', 'ISSUED')
             ->orderByDesc('created_at')
-            ->get(['id', 'number', 'state'])
-            ->map(function ($reg) {
-                // Tambahkan informasi tentang dokumen yang sudah ada
-                $existingDocs = $reg->documents()->get(['direction']);
-                $reg->existing_directions = $existingDocs->pluck('direction')
-                    ->map(fn($direction) => DirectionHelper::convertToNewFormat($direction))
-                    ->toArray();
-                return $reg;
-            });
+            ->get(['id', 'number', 'state']);
 
         return Inertia::render('Documents/Create', [
             'types' => DocumentType::where('is_active', 1)->orderBy('name')->get(['id', 'name']),
@@ -170,15 +175,15 @@ class DocumentController extends Controller
         return DB::transaction(function () use ($data, $user) {
             $reg = Registration::where('number', $data['registration_number'])->lockForUpdate()->firstOrFail();
 
-            // Check for duplicates
-            $exists = $reg->documents()->where('direction', $data['direction'])->exists();
-            if ($exists) {
-                throw ValidationException::withMessages(['direction' => 'Dokumen untuk arah ini pada nomor tersebut sudah ada.']);
+            // Check if registration already has a document
+            // Satu nomor registrasi hanya untuk satu dokumen
+            if ($reg->documents()->exists()) {
+                throw ValidationException::withMessages(['registration_number' => 'Nomor registrasi ini sudah digunakan untuk dokumen lain. Silakan gunakan nomor registrasi yang berbeda.']);
             }
 
             // Check if registration can still be used
             if ($reg->state === 'COMMITTED') {
-                throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah lengkap (COMMITTED) dan tidak bisa ditambah dokumen lagi.']);
+                throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah digunakan dan tidak bisa ditambah dokumen lagi.']);
             }
 
             $doc = new Document();
@@ -244,20 +249,16 @@ class DocumentController extends Controller
         // Load document with relationships
         $document->load(['type:id,name', 'registration:id,number']);
 
-        // Ambil registrations yang bisa digunakan (ISSUED atau PARTIAL)
-        // PARTIAL berarti masih bisa ditambah dokumen dengan arah yang berbeda
+        // Ambil registrations yang bisa digunakan (ISSUED saja)
+        // Satu nomor registrasi hanya untuk satu dokumen
+        // Juga sertakan registration yang sedang digunakan oleh document ini
         $availableRegistrations = Registration::where('issued_to_user_id', $user->id)
-            ->whereIn('state', ['ISSUED', 'PARTIAL'])
+            ->where(function ($q) use ($document) {
+                $q->where('state', 'ISSUED')
+                    ->orWhere('id', $document->registration_id);
+            })
             ->orderByDesc('created_at')
-            ->get(['id', 'number', 'state'])
-            ->map(function ($reg) {
-                // Tambahkan informasi tentang dokumen yang sudah ada
-                $existingDocs = $reg->documents()->get(['direction']);
-                $reg->existing_directions = $existingDocs->pluck('direction')->map(function ($direction) {
-                    return DirectionHelper::convertToNewFormat($direction);
-                })->toArray();
-                return $reg;
-            });
+            ->get(['id', 'number', 'state']);
 
         // Convert direction to new format for frontend
         $document->direction = DirectionHelper::convertToNewFormat($document->direction);
@@ -337,21 +338,21 @@ class DocumentController extends Controller
                 $reg = Registration::where('number', $data['registration_number'])->lockForUpdate()->firstOrFail();
             }
 
-            // Only check for duplicates if we have both registration and direction
-            if (isset($data['direction']) && $data['direction'] && isset($data['registration_number']) && $data['registration_number']) {
-                $exists = $reg->documents()
-                    ->where('direction', $data['direction'])
+            // Cek apakah registration sudah digunakan dokumen lain (kecuali dokumen ini sendiri)
+            // Satu nomor registrasi hanya untuk satu dokumen
+            if (isset($data['registration_number']) && $data['registration_number'] && $reg->id !== $document->registration_id) {
+                $hasOtherDocument = $reg->documents()
                     ->where('id', '!=', $document->id)
                     ->exists();
 
-                if ($exists) {
-                    throw ValidationException::withMessages(['direction' => 'Dokumen untuk arah ini pada nomor tersebut sudah ada.']);
+                if ($hasOtherDocument) {
+                    throw ValidationException::withMessages(['registration_number' => 'Nomor registrasi ini sudah digunakan untuk dokumen lain. Silakan gunakan nomor registrasi yang berbeda.']);
                 }
-            }
 
-            // Cek apakah registration masih bisa digunakan (kecuali jika tidak mengubah registration)
-            if (isset($data['registration_number']) && $data['registration_number'] && $reg->state === 'COMMITTED' && $reg->id !== $document->registration_id) {
-                throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah lengkap (COMMITTED) dan tidak bisa ditambah dokumen lagi.']);
+                // Cek apakah registration masih bisa digunakan
+                if ($reg->state === 'COMMITTED') {
+                    throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah digunakan dan tidak bisa ditambah dokumen lagi.']);
+                }
             }
 
             // Prepare fill data, only update fields that are provided
@@ -489,35 +490,53 @@ class DocumentController extends Controller
     }
 
     /**
-     * Export documents to Excel/CSV (Admin only)
+     * Export documents to Excel/CSV
+     * Admin: can export all documents with direction filter
+     * Client: can only export their own documents
      */
     public function export(Request $request)
     {
         $user = $request->user();
 
-        // Ensure only admin can export
-        if ($user->role !== 'ADMIN') {
-            return response()->json([
-                'error' => 'Only administrators can export documents.'
-            ], 403);
-        }
+        // Both admin and client can export
+        // Admin: can export all documents with filters
+        // Client: can only export their own documents
 
         // Get selected document IDs from request
         $selectedIds = $request->get('ids', '');
         $ids = $selectedIds ? explode(',', $selectedIds) : [];
 
-        // Build query - admin can export all documents, but only SUBMITTED status
+        // Build query - only SUBMITTED status
         $query = Document::with(['registration', 'type', 'owner'])
             ->where('status', 'SUBMITTED'); // Only export submitted documents
+
+        // Client can only export their own documents
+        if ($user->role === 'CLIENT') {
+            $query->where('owner_user_id', $user->id);
+        }
 
         // Filter by selected IDs if provided
         if (!empty($ids)) {
             $query->whereIn('id', $ids);
         }
 
-        // Apply filters
-        if ($request->has('directions') && is_array($request->directions) && !empty($request->directions)) {
-            $query->whereIn('direction', $request->directions);
+        // Apply direction filter - expand to include Taiwan variants (Admin only)
+        if ($user->role === 'ADMIN' && $request->has('direction') && $request->direction) {
+            $selectedDirection = $request->direction;
+
+            // Expand direction to include Taiwan variants
+            $directionsToExport = [];
+            if ($selectedDirection === 'indo-mandarin') {
+                // Indo-Mandarin includes Indo-Taiwan
+                $directionsToExport = ['Indo-Mandarin', 'Indo-Taiwan'];
+            } elseif ($selectedDirection === 'mandarin-indo') {
+                // Mandarin-Indo includes Taiwan-Indo
+                $directionsToExport = ['Mandarin-Indo', 'Taiwan-Indo'];
+            }
+
+            if (!empty($directionsToExport)) {
+                $query->whereIn('direction', $directionsToExport);
+            }
         }
 
         if ($request->has('start_date')) {
@@ -538,46 +557,28 @@ class DocumentController extends Controller
             ], 404);
         }
 
-        // Validate direction combinations
-        $directions = $documents->pluck('direction')->unique()->values()->toArray();
-
-        // Convert database directions to new format for validation
-        $newFormatDirections = array_map(function ($direction) {
-            return DirectionHelper::convertToNewFormat($direction);
-        }, $directions);
-
-        // Check if directions are compatible for export
-        $compatibleGroups = [
-            ['Mandarin-Indo', 'Taiwan-Indo'], // Both use mandarin-indo template
-            ['Indo-Mandarin', 'Indo-Taiwan'], // Both use indo-mandarin template
-        ];
-
-        $isCompatible = false;
-        foreach ($compatibleGroups as $group) {
-            // Check if all selected directions are in the same compatible group
-            if (
-                count(array_intersect($newFormatDirections, $group)) === count($newFormatDirections) &&
-                count($newFormatDirections) === count(array_intersect($newFormatDirections, $group))
-            ) {
-                $isCompatible = true;
-                break;
-            }
-        }
-
-        if (!$isCompatible && count($newFormatDirections) > 1) {
-            return response()->json([
-                'error' => 'Selected documents have incompatible directions. You can only export documents with compatible directions: Mandarin-Indo + Taiwan-Indo OR Indo-Mandarin + Indo-Taiwan.'
-            ], 400);
-        }
-
         // Determine template direction
-        $templateDirection = null;
-        if (in_array('Mandarin-Indo', $newFormatDirections) || in_array('Taiwan-Indo', $newFormatDirections)) {
-            $templateDirection = 'mandarin-indo';
-        } elseif (in_array('Indo-Mandarin', $newFormatDirections) || in_array('Indo-Taiwan', $newFormatDirections)) {
-            $templateDirection = 'indo-mandarin';
+        $templateDirection = 'mandarin-indo'; // Default
+
+        if ($user->role === 'ADMIN' && $request->has('direction') && $request->direction) {
+            // Admin: use selected direction
+            if ($request->direction === 'indo-mandarin') {
+                $templateDirection = 'indo-mandarin';
+            } elseif ($request->direction === 'mandarin-indo') {
+                $templateDirection = 'mandarin-indo';
+            }
         } else {
-            $templateDirection = 'mandarin-indo'; // Default fallback
+            // Client or admin without direction filter: detect from documents
+            $directions = $documents->pluck('direction')->unique()->values()->toArray();
+            $newFormatDirections = array_map(function ($direction) {
+                return DirectionHelper::convertToNewFormat($direction);
+            }, $directions);
+
+            if (in_array('Indo-Mandarin', $newFormatDirections) || in_array('Indo-Taiwan', $newFormatDirections)) {
+                $templateDirection = 'indo-mandarin';
+            } elseif (in_array('Mandarin-Indo', $newFormatDirections) || in_array('Taiwan-Indo', $newFormatDirections)) {
+                $templateDirection = 'mandarin-indo';
+            }
         }
 
         // Generate export using template service

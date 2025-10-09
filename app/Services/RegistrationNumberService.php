@@ -98,11 +98,12 @@ class RegistrationNumberService
     }
 
     // update state registrasi sesuai jumlah dokumen yang sudah ada
+    // Satu nomor registrasi hanya untuk satu dokumen
     public function refreshState(Registration $reg): void
     {
         $count = $reg->documents()->count();
         $reg->update([
-            'state' => $count === 0 ? 'ISSUED' : ($count === 1 ? 'PARTIAL' : 'COMMITTED')
+            'state' => $count === 0 ? 'ISSUED' : 'COMMITTED'
         ]);
     }
 

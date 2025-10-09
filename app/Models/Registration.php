@@ -24,6 +24,13 @@ class Registration extends Model
         'expires_at' => 'datetime',
     ];
 
+    // Satu nomor registrasi hanya untuk satu dokumen
+    public function document()
+    {
+        return $this->hasOne(Document::class);
+    }
+
+    // Backward compatibility - tetap support documents() untuk existing code
     public function documents()
     {
         return $this->hasMany(Document::class);
