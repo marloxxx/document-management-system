@@ -108,16 +108,28 @@ return new class extends Migration
                 ->update(['state' => $remainingCount === 0 ? 'ISSUED' : 'COMMITTED']);
         }
 
-        Schema::table('documents', function (Blueprint $table) {
+        // Check if foreign key already exists
+        $foreignKeyExists = DB::select("
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'documents'
+              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+              AND CONSTRAINT_NAME = 'documents_registration_id_foreign'
+        ");
+
+        Schema::table('documents', function (Blueprint $table) use ($foreignKeyExists) {
             // Add unique constraint on registration_id only
             // Satu nomor registrasi hanya bisa untuk satu dokumen
             $table->unique('registration_id');
 
-            // Add foreign key
-            $table->foreign('registration_id')
-                ->references('id')
-                ->on('registrations')
-                ->nullOnDelete();
+            // Add foreign key only if it doesn't exist
+            if (empty($foreignKeyExists)) {
+                $table->foreign('registration_id')
+                    ->references('id')
+                    ->on('registrations')
+                    ->nullOnDelete();
+            }
         });
     }
 
