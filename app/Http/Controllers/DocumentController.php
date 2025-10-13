@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Yajra\DataTables\Facades\DataTables;
 use App\Services\DocumentTemplateService;
 use App\Services\RegistrationNumberService;
+use App\Services\S3GlacierService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -24,7 +25,8 @@ class DocumentController extends Controller
 
     public function __construct(
         private DocumentTemplateService $templateService,
-        private RegistrationNumberService $regSvc
+        private RegistrationNumberService $regSvc,
+        private S3GlacierService $s3GlacierService
     ) {}
 
     public function index(Request $r)
@@ -208,10 +210,19 @@ class DocumentController extends Controller
 
             if (request()->hasFile('evidence')) {
                 $file = request()->file('evidence');
-                $path = $file->store('documents/' . now()->format('Y/m'));
-                $doc->evidence_path = $path;
-                $doc->evidence_mime = $file->getClientMimeType();
-                $doc->evidence_size = $file->getSize();
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                $path = 'documents/' . now()->format('Y/m') . '/' . $fileName;
+
+                // Upload to S3 Glacier
+                $uploadResult = $this->s3GlacierService->uploadToGlacier($file, $path, 'GLACIER');
+
+                if ($uploadResult !== false) {
+                    $doc->evidence_path = $uploadResult;
+                    $doc->evidence_mime = $file->getClientMimeType();
+                    $doc->evidence_size = $file->getSize();
+                } else {
+                    throw new \Exception('Failed to upload evidence to S3 Glacier');
+                }
             }
 
             $doc->save();
@@ -403,10 +414,24 @@ class DocumentController extends Controller
 
             if (request()->hasFile('evidence')) {
                 $file = request()->file('evidence');
-                $path = $file->store('documents/' . now()->format('Y/m'));
-                $document->evidence_path = $path;
-                $document->evidence_mime = $file->getClientMimeType();
-                $document->evidence_size = $file->getSize();
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                $path = 'documents/' . now()->format('Y/m') . '/' . $fileName;
+
+                // Upload to S3 Glacier
+                $uploadResult = $this->s3GlacierService->uploadToGlacier($file, $path, 'GLACIER');
+
+                if ($uploadResult !== false) {
+                    // Delete old evidence from S3 if exists
+                    if ($document->evidence_path) {
+                        $this->s3GlacierService->deleteFile($document->evidence_path);
+                    }
+
+                    $document->evidence_path = $uploadResult;
+                    $document->evidence_mime = $file->getClientMimeType();
+                    $document->evidence_size = $file->getSize();
+                } else {
+                    throw new \Exception('Failed to upload evidence to S3 Glacier');
+                }
             }
 
             $document->save();
@@ -425,6 +450,11 @@ class DocumentController extends Controller
         return DB::transaction(function () use ($document) {
             $reg = $document->registration;
 
+            // Delete evidence file from S3 Glacier if exists
+            if ($document->evidence_path) {
+                $this->s3GlacierService->deleteFile($document->evidence_path);
+            }
+
             // Delete the document
             $document->delete();
 
@@ -442,21 +472,71 @@ class DocumentController extends Controller
 
     /**
      * Download evidence file for the specified document.
+     * Handle Glacier restore if needed.
      */
     public function downloadEvidence(Document $document)
     {
         $this->authorize('view', $document);
 
-        if (!$document->evidence_path || !Storage::exists($document->evidence_path)) {
+        if (!$document->evidence_path) {
             abort(404, 'Evidence file not found');
         }
 
-        $filename = basename($document->evidence_path);
-        $mimeType = $document->evidence_mime ?: Storage::mimeType($document->evidence_path);
+        try {
+            // Check restore status
+            $restoreStatus = $this->s3GlacierService->checkRestoreStatus($document->evidence_path);
 
-        return Storage::download($document->evidence_path, $filename, [
-            'Content-Type' => $mimeType,
-        ]);
+            // If file is in Glacier and not restored yet
+            if ($restoreStatus['status'] === 'not_archived') {
+                // File is not archived, can be downloaded directly
+                $content = $this->s3GlacierService->downloadRestoredFile($document->evidence_path);
+
+                if ($content === false) {
+                    abort(500, 'Failed to download file');
+                }
+
+                $filename = basename($document->evidence_path);
+                $mimeType = $document->evidence_mime ?: 'application/octet-stream';
+
+                return response($content)
+                    ->header('Content-Type', $mimeType)
+                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            } elseif ($restoreStatus['status'] === 'completed') {
+                // File has been restored and is ready for download
+                $content = $this->s3GlacierService->downloadRestoredFile($document->evidence_path);
+
+                if ($content === false) {
+                    abort(500, 'Failed to download file');
+                }
+
+                $filename = basename($document->evidence_path);
+                $mimeType = $document->evidence_mime ?: 'application/octet-stream';
+
+                return response($content)
+                    ->header('Content-Type', $mimeType)
+                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            } elseif ($restoreStatus['status'] === 'in_progress') {
+                // Restore is already in progress
+                return response()->json([
+                    'message' => 'File restore is in progress. Please try again in a few hours.',
+                    'status' => 'in_progress'
+                ], 202);
+            } else {
+                // File needs to be restored first
+                $initiated = $this->s3GlacierService->initiateRestore($document->evidence_path, 7, 'Standard');
+
+                if ($initiated) {
+                    return response()->json([
+                        'message' => 'File restore has been initiated. This process may take 3-5 hours. Please try downloading again later.',
+                        'status' => 'initiated'
+                    ], 202);
+                } else {
+                    abort(500, 'Failed to initiate file restore');
+                }
+            }
+        } catch (\Exception $e) {
+            abort(500, 'Failed to process download: ' . $e->getMessage());
+        }
     }
 
     /**
