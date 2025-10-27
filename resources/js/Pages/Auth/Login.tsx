@@ -153,18 +153,6 @@ export default function Login({ status, canResetPassword }: { status?: string; c
               </div>
             </CardContent>
           </Card>
-
-          <div className="text-center text-xs text-muted-foreground">
-            <p>Demo Accounts:</p>
-            <div className="mt-1 space-y-1">
-              <p>
-                <strong>Admin:</strong> admin@example.com / admin123
-              </p>
-              <p>
-                <strong>Client:</strong> client1@example.com / client123
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </>
