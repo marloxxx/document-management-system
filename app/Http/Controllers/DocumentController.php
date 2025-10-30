@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Helpers\DirectionHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Yajra\DataTables\Facades\DataTables;
 use App\Services\DocumentTemplateService;
@@ -567,6 +568,110 @@ class DocumentController extends Controller
             ->values();
 
         return response()->json($suggestions);
+    }
+
+    /**
+     * Download all evidence files as a zip archive (dispatch background job)
+     * Admin: can download all evidence files with filters
+     * Client: can only download their own documents' evidence files
+     */
+    public function downloadAllEvidence(Request $request)
+    {
+        $user = $request->user();
+
+        // Generate unique job ID
+        $jobId = uniqid('evidence_', true);
+
+        // Prepare filters
+        $filters = [];
+
+        // Client can only download their own documents' evidence
+        if ($user->role === 'CLIENT') {
+            $filters['owner_user_id'] = $user->id;
+        } else {
+            // Admin filters
+            if ($request->has('direction') && $request->direction !== 'all') {
+                $filters['direction'] = $request->direction;
+            }
+
+            if ($request->has('status') && $request->status !== 'all') {
+                $filters['status'] = $request->status;
+            }
+
+            if ($request->has('owner_user_id') && $request->owner_user_id !== 'all') {
+                $filters['owner_user_id'] = $request->owner_user_id;
+            }
+        }
+
+        // Get selected document IDs if provided
+        $documentIds = [];
+        $selectedIds = $request->get('ids', '');
+        if ($selectedIds) {
+            $documentIds = explode(',', $selectedIds);
+        }
+
+        // Initialize job status in cache
+        Cache::put('evidence_download_job_' . $jobId, [
+            'status' => 'queued',
+            'message' => 'Job sedang dalam antrian...',
+            'progress' => 0,
+            'created_at' => now()->toISOString(),
+        ], 86400);
+
+        // Dispatch the job
+        \App\Jobs\DownloadAllEvidenceJob::dispatch($jobId, $user->id, $filters, $documentIds);
+
+        return response()->json([
+            'job_id' => $jobId,
+            'message' => 'Download job telah dimulai. Anda akan menerima notifikasi ketika selesai.'
+        ]);
+    }
+
+    /**
+     * Check the status of evidence download job
+     */
+    public function checkEvidenceDownloadStatus(Request $request, string $jobId)
+    {
+        $status = Cache::get('evidence_download_job_' . $jobId);
+
+        if (!$status) {
+            return response()->json([
+                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.'
+            ], 404);
+        }
+
+        return response()->json($status);
+    }
+
+    /**
+     * Download the completed zip file
+     */
+    public function downloadEvidenceZip(Request $request, string $jobId)
+    {
+        $status = Cache::get('evidence_download_job_' . $jobId);
+
+        if (!$status) {
+            return response()->json([
+                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.'
+            ], 404);
+        }
+
+        if ($status['status'] !== 'completed') {
+            return response()->json([
+                'error' => 'File belum siap untuk diunduh.',
+                'status' => $status['status']
+            ], 422);
+        }
+
+        $zipPath = storage_path('app/temp/' . $status['filename']);
+
+        if (!file_exists($zipPath)) {
+            return response()->json([
+                'error' => 'File tidak ditemukan.'
+            ], 404);
+        }
+
+        return response()->download($zipPath, $status['filename'])->deleteFileAfterSend(true);
     }
 
     /**

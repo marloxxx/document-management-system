@@ -1,7 +1,7 @@
 "use client"
 import { Head, Link } from "@inertiajs/react"
 import { useRef, useState } from "react"
-import { Plus, MoreHorizontal, Edit, Trash2, Eye, Download, FileDown } from "lucide-react"
+import { Plus, MoreHorizontal, Edit, Trash2, Eye, Download, FileDown, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import AppLayout from "@/Layouts/AppLayout"
@@ -344,6 +344,127 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
     }
   }
 
+  // Handle download all evidence files with background job
+  const [downloadJobId, setDownloadJobId] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<number>(0)
+  const [downloadStatus, setDownloadStatus] = useState<string>('')
+
+  const handleDownloadAllEvidence = async () => {
+    try {
+      const params = new URLSearchParams()
+
+      // Get current table filters
+      const tableFilters = dataTableRef.current?.getFilters() || {}
+      if (tableFilters.direction && tableFilters.direction !== 'all') {
+        params.append('direction', tableFilters.direction)
+      }
+      if (tableFilters.status && tableFilters.status !== 'all') {
+        params.append('status', tableFilters.status)
+      }
+      if (tableFilters.owner_user_id && tableFilters.owner_user_id !== 'all') {
+        params.append('owner_user_id', tableFilters.owner_user_id)
+      }
+
+      const url = route('documents.evidence.download-all') + (params.toString() ? '?' + params.toString() : '')
+
+      // Initiate the job
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to start download job')
+      }
+
+      const data = await response.json()
+      setDownloadJobId(data.job_id)
+      setDownloadProgress(0)
+      setDownloadStatus('queued')
+
+      // Show toast
+      toast({
+        title: "Download Job Started",
+        description: "Your download is being prepared in the background. Please wait...",
+      })
+
+      // Start polling for job status
+      pollJobStatus(data.job_id)
+    } catch (error: any) {
+      console.error('Download error:', error)
+      toast({
+        title: "Download Failed",
+        description: error.message || 'Failed to download evidence files',
+        variant: "destructive",
+      })
+    }
+  }
+
+  const pollJobStatus = async (jobId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(route('documents.evidence.job.status', { jobId }), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        })
+
+        if (!response.ok) {
+          clearInterval(pollInterval)
+          setDownloadJobId(null)
+          toast({
+            title: "Job Status Error",
+            description: "Could not check job status",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const status = await response.json()
+        setDownloadStatus(status.status)
+        setDownloadProgress(status.progress || 0)
+
+        if (status.status === 'completed') {
+          clearInterval(pollInterval)
+
+          // Trigger download
+          const downloadUrl = route('documents.evidence.job.download', { jobId })
+          window.open(downloadUrl, '_blank')
+
+          toast({
+            title: "Download Ready!",
+            description: status.message || "Your evidence files are ready for download.",
+            variant: "success",
+          })
+
+          setDownloadJobId(null)
+          setDownloadProgress(0)
+          setDownloadStatus('')
+        } else if (status.status === 'failed') {
+          clearInterval(pollInterval)
+
+          toast({
+            title: "Download Failed",
+            description: status.message || "Failed to prepare evidence files",
+            variant: "destructive",
+          })
+
+          setDownloadJobId(null)
+          setDownloadProgress(0)
+          setDownloadStatus('')
+        }
+      } catch (error: any) {
+        console.error('Polling error:', error)
+        clearInterval(pollInterval)
+        setDownloadJobId(null)
+      }
+    }, 2000) // Poll every 2 seconds
+  }
+
   return (
     <AppLayout>
       <Head title="Documents" />
@@ -372,6 +493,10 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownloadAllEvidence} disabled={downloadJobId !== null}>
+              <Archive className="mr-2 h-4 w-4" />
+              {downloadJobId ? `Processing... ${Math.round(downloadProgress)}%` : 'Download All Evidence'}
+            </Button>
             <Dialog open={isExportDialogOpen} onOpenChange={(open) => {
               setIsExportDialogOpen(open)
               if (!open) {

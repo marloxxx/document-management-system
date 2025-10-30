@@ -52,6 +52,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents/{document}', [DocumentController::class, 'update'])->name('documents.update.post');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
     Route::get('/documents/{document}/evidence', [DocumentController::class, 'downloadEvidence'])->name('documents.evidence');
+    Route::post('/documents/evidence/download-all', [DocumentController::class, 'downloadAllEvidence'])->name('documents.evidence.download-all');
+    Route::get('/documents/evidence/job/{jobId}/status', [DocumentController::class, 'checkEvidenceDownloadStatus'])->name('documents.evidence.job.status');
+    Route::get('/documents/evidence/job/{jobId}/download', [DocumentController::class, 'downloadEvidenceZip'])->name('documents.evidence.job.download');
     Route::get('/documents/user-identity/suggestions', [DocumentController::class, 'getUserIdentitySuggestions'])->name('documents.user-identity-suggestions');
 
     // Export routes (Admin only)
