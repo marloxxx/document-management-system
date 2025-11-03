@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, FileText, Save, AlertCircle, BookOpen } from "lucide-react"
+import { ArrowLeft, FileText, Save, AlertCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -67,7 +66,7 @@ interface Props {
 
 export default function EditDocument({ document, types, directions, availableRegistrations, errors: _serverErrors }: Props) {
     const { toast } = useToast()
-    const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+    const [formErrors, setFormErrors] = useState<Record<string, string>>(_serverErrors || {})
 
     const { data, setData, processing } = useForm({
         registration_number: document.registration_number,
@@ -80,29 +79,33 @@ export default function EditDocument({ document, types, directions, availableReg
         user_identity: document.user_identity || "",
         issued_date: document.issued_date ? new Date(document.issued_date) : undefined,
         evidence: null as File | null,
-        is_draft: "false",
     })
 
     useEffect(() => {
+        if (_serverErrors && Object.keys(_serverErrors).length > 0) {
+            setFormErrors(_serverErrors)
+        }
+    }, [_serverErrors])
+
+    useEffect(() => {
         if (formErrors && Object.keys(formErrors).length > 0) {
-            Object.entries(formErrors).forEach(([field, message]) => {
+            Object.entries(formErrors).forEach(([, message]) => {
                 toast({
                     variant: "destructive",
                     title: "Validation Error",
-                    description: `${field}: ${message}`,
+                    description: message,
                 })
             })
         }
     }, [formErrors])
 
-    const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
 
         const formData = new FormData()
         formData.append("registration_number", data.registration_number)
         formData.append("direction", data.direction)
         formData.append("page_count", data.page_count)
-        formData.append("is_draft", isDraft.toString())
 
         if (data.document_type_id && data.document_type_id !== "none") {
             formData.append("document_type_id", data.document_type_id)
@@ -133,7 +136,7 @@ export default function EditDocument({ document, types, directions, availableReg
                 setFormErrors({}) // Clear errors on success
                 toast({
                     title: "Success",
-                    description: isDraft ? "Document saved as draft" : "Document updated successfully",
+                    description: "Document updated successfully",
                     variant: "success",
                 })
             },
@@ -142,14 +145,10 @@ export default function EditDocument({ document, types, directions, availableReg
                 toast({
                     variant: "destructive",
                     title: "Error",
-                    description: `Failed to ${isDraft ? 'save draft' : 'update document'}. Please check the form.`,
+                    description: "Failed to update document. Please check the form.",
                 })
             },
         })
-    }
-
-    const handleSaveDraft = (e: React.FormEvent) => {
-        handleSubmit(e, true)
     }
 
     return (
@@ -270,7 +269,7 @@ export default function EditDocument({ document, types, directions, availableReg
                                 <div className="space-y-2">
                                     <Label htmlFor="document_type_id">Document Type (Predefined)</Label>
                                     <Select value={data.document_type_id} onValueChange={(value) => setData("document_type_id", value)}>
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger className={`w-full ${formErrors.document_type_id ? "border-destructive" : ""}`}>
                                             <SelectValue placeholder="Select type" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -282,6 +281,12 @@ export default function EditDocument({ document, types, directions, availableReg
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {formErrors.document_type_id && (
+                                        <p className="text-sm text-destructive flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" />
+                                            {formErrors.document_type_id}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="document_type_text">Or Custom Type</Label>
@@ -392,13 +397,6 @@ export default function EditDocument({ document, types, directions, availableReg
                                 Complete identity information of the user requesting translation
                             </p>
 
-                            {/* Info Alert */}
-                            <Alert>
-                                <AlertDescription>
-                                    You can save as draft to continue later, or submit the document for processing.
-                                </AlertDescription>
-                            </Alert>
-
                             {/* Actions */}
                             <div className="flex gap-3 pt-4">
                                 <Link href={`/documents/${document.id}`} className="flex-1">
@@ -406,16 +404,6 @@ export default function EditDocument({ document, types, directions, availableReg
                                         Cancel
                                     </Button>
                                 </Link>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={handleSaveDraft}
-                                    disabled={processing}
-                                    className="flex-1"
-                                >
-                                    <BookOpen className="mr-2 h-4 w-4" />
-                                    {processing ? "Saving..." : "Save as Draft"}
-                                </Button>
                                 <Button type="submit" disabled={processing} className="flex-1">
                                     <Save className="mr-2 h-4 w-4" />
                                     {processing ? "Updating..." : "Update Document"}
