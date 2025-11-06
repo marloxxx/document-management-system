@@ -5,6 +5,7 @@ import { Head, useForm, Link } from "@inertiajs/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupButton } from "@/components/ui/input-group"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, Sun, Moon, FileText } from "lucide-react"
@@ -83,42 +84,51 @@ export default function Login({ status, canResetPassword }: { status?: string; c
               <form onSubmit={submit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                  <InputGroup>
+                    <InputGroupAddon align="inline-start">
+                      <Mail className="h-4 w-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
                       id="email"
                       type="email"
                       value={data.email}
                       onChange={(e) => setData("email", e.target.value)}
-                      className="pl-10"
                       placeholder="Enter your email"
                       required
                     />
-                  </div>
+                  </InputGroup>
                   {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                  <InputGroup>
+                    <InputGroupAddon align="inline-start">
+                      <Lock className="h-4 w-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={data.password}
                       onChange={(e) => setData("password", e.target.value)}
-                      className="pl-10 pr-10"
                       placeholder="Enter your password"
                       required
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff /> : <Eye />}
-                    </button>
-                  </div>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
                   {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                 </div>
 

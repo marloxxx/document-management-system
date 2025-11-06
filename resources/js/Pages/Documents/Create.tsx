@@ -4,12 +4,13 @@ import type * as React from "react"
 import { Head, useForm, Link, router } from "@inertiajs/react"
 import AppLayout from "@/Layouts/AppLayout"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, FileText, Save, AlertCircle } from "lucide-react"
+import { ArrowLeft, FileText, Save, AlertCircle, Type, Hash, Upload } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -154,34 +155,25 @@ export default function CreateDocument({ types, directions, availableRegistratio
                   <Label htmlFor="registration_number">
                     Registration Number <span className="text-destructive">*</span>
                   </Label>
-                  <Select
+                  <Combobox
                     value={data.registration_number}
                     onValueChange={(value) => setData("registration_number", value)}
-                  >
-                    <SelectTrigger className={`w-full ${formErrors.registration_number ? "border-destructive" : ""}`}>
-                      <SelectValue placeholder="Select registration number">
-                        {data.registration_number && (
-                          <span className="truncate">{data.registration_number}</span>
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableRegistrations.length === 0 ? (
-                        <div className="p-2 text-sm text-muted-foreground">No available registrations</div>
-                      ) : (
-                        availableRegistrations.map((reg) => (
-                          <SelectItem key={reg.id} value={reg.number}>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{reg.number}</span>
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">
-                                Available
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select registration number"
+                    searchPlaceholder="Search registration number..."
+                    emptyText={availableRegistrations.length === 0 ? "No available registrations" : "No registration found"}
+                    error={!!formErrors.registration_number}
+                    options={availableRegistrations.map((reg) => ({
+                      value: reg.number,
+                      label: (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{reg.number}</span>
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            Available
+                          </span>
+                        </div>
+                      ),
+                    }))}
+                  />
                   {formErrors.registration_number && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
@@ -232,19 +224,21 @@ export default function CreateDocument({ types, directions, availableRegistratio
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="document_type_id">Document Type (Predefined)</Label>
-                  <Select value={data.document_type_id} onValueChange={(value) => setData("document_type_id", value)}>
-                    <SelectTrigger className={`w-full ${formErrors.document_type_id ? "border-destructive" : ""}`}>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {types.map((type) => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    value={data.document_type_id || ""}
+                    onValueChange={(value) => setData("document_type_id", value)}
+                    placeholder="Select type"
+                    searchPlaceholder="Search document type..."
+                    emptyText="No document type found"
+                    error={!!formErrors.document_type_id}
+                    options={[
+                      { value: "none", label: "None" },
+                      ...types.map((type) => ({
+                        value: type.id.toString(),
+                        label: type.name,
+                      })),
+                    ]}
+                  />
                   {formErrors.document_type_id && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
@@ -254,12 +248,17 @@ export default function CreateDocument({ types, directions, availableRegistratio
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="document_type_text">Or Custom Type</Label>
-                  <Input
-                    id="document_type_text"
-                    value={data.document_type_text}
-                    onChange={(e) => setData("document_type_text", e.target.value)}
-                    placeholder="Enter custom type"
-                  />
+                  <InputGroup>
+                    <InputGroupAddon align="inline-start">
+                      <Type className="h-4 w-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="document_type_text"
+                      value={data.document_type_text}
+                      onChange={(e) => setData("document_type_text", e.target.value)}
+                      placeholder="Enter custom type"
+                    />
+                  </InputGroup>
                 </div>
               </div>
 
@@ -267,25 +266,35 @@ export default function CreateDocument({ types, directions, availableRegistratio
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Document Title</Label>
-                  <Input
-                    id="title"
-                    value={data.title}
-                    onChange={(e) => setData("title", e.target.value)}
-                    placeholder="Enter document title"
-                  />
+                  <InputGroup>
+                    <InputGroupAddon align="inline-start">
+                      <FileText className="h-4 w-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="title"
+                      value={data.title}
+                      onChange={(e) => setData("title", e.target.value)}
+                      placeholder="Enter document title"
+                    />
+                  </InputGroup>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="page_count">
                     Page Count <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="page_count"
-                    type="number"
-                    min="1"
-                    value={data.page_count}
-                    onChange={(e) => setData("page_count", e.target.value)}
-                    className={formErrors.page_count ? "border-destructive" : ""}
-                  />
+                  <InputGroup className={formErrors.page_count ? "border-destructive" : ""}>
+                    <InputGroupAddon align="inline-start">
+                      <Hash className="h-4 w-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="page_count"
+                      type="number"
+                      min="1"
+                      value={data.page_count}
+                      onChange={(e) => setData("page_count", e.target.value)}
+                      aria-invalid={!!formErrors.page_count}
+                    />
+                  </InputGroup>
                   {formErrors.page_count && (
                     <p className="text-sm text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
@@ -308,13 +317,18 @@ export default function CreateDocument({ types, directions, availableRegistratio
               {/* Evidence File */}
               <div className="space-y-2">
                 <Label htmlFor="evidence">Evidence File</Label>
-                <Input
-                  id="evidence"
-                  type="file"
-                  onChange={(e) => setData("evidence", e.target.files?.[0] || null)}
-                  className="cursor-pointer"
-                  accept=".pdf,.doc,.docx"
-                />
+                <InputGroup>
+                  <InputGroupAddon align="inline-start">
+                    <Upload className="h-4 w-4" />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="evidence"
+                    type="file"
+                    onChange={(e) => setData("evidence", e.target.files?.[0] || null)}
+                    className="cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                    accept=".pdf,.doc,.docx"
+                  />
+                </InputGroup>
                 {data.evidence && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <FileText className="h-4 w-4" />
