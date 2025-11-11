@@ -37,7 +37,7 @@ interface Document {
   owner: {
     id: number
     name: string
-  }
+  } | string | null
   type: string | null // DataTables returns this as a string, not an object
   registration: {
     id: number
@@ -130,9 +130,17 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
         const document = row.original
         const userIdentity = document.user_identity
 
+        const ownerData = document.owner
+        const ownerName =
+          typeof ownerData === "object" && ownerData !== null
+            ? ownerData.name
+            : ownerData || null
+
         return (
           <div className="max-w-[200px]">
-            <div className="text-sm font-medium">{document.owner.name}</div>
+            <div className="text-sm font-medium">
+              {ownerName || <span className="text-muted-foreground italic">Unknown owner</span>}
+            </div>
             {userIdentity && (
               <div className="text-xs text-muted-foreground truncate">
                 {userIdentity}
