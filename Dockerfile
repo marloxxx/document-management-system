@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM php:8.4-cli-alpine AS vendor
 
 WORKDIR /app
@@ -52,22 +50,10 @@ RUN npm ci
 
 COPY resources ./resources
 COPY public ./public
-COPY vite.config.js vite.config.js
-COPY postcss.config.mjs postcss.config.mjs
-COPY tsconfig.json tsconfig.json
+COPY vite.config.js ./vite.config.js
 RUN npm run build
 
 FROM webdevops/php-nginx:8.4-alpine
-
-# Vendor stage does not ship PHP extensions into this image; add runtime deps for Postgres/Redis/queue.
-RUN apk add --no-cache \
-    postgresql-dev \
-    $PHPIZE_DEPS \
-    && docker-php-ext-install -j"$(nproc)" pdo_pgsql pcntl \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apk del $PHPIZE_DEPS postgresql-dev \
-    && apk add --no-cache postgresql-libs
 
 WORKDIR /app
 
