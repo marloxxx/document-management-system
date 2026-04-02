@@ -1,3 +1,11 @@
+# VPS deployment (Docker + Traefik)
+
+Deploy this Laravel app with **Docker Compose** on a host that already runs a shared stack (e.g. [vps-multi-project](https://github.com/marloxxx/vps-multi-project)): Traefik on **`proxy`**, Postgres/Redis/MySQL on **`backend`**.
+
+**Public URL for Laravel** is **`APP_URL`** only (full URL, e.g. `https://dms.example.com`). There is no `APP_HOST` in `.env`. Traefik’s `Host()` rule needs a bare hostname; **`scripts/compose.sh`** derives that from **`APP_URL`** and exports **`TRAEFIK_HOST`** for Compose (not stored in `.env`).
+
+---
+
 ## Source repository
 
 | | URL |
@@ -9,34 +17,28 @@ After cloning, confirm the remote:
 
 ```bash
 git remote -v
-# origin  https://github.com/marloxxx/document-management-system.git (fetch)
-# origin  https://github.com/marloxxx/document-management-system.git (push)
 ```
 
-Use **SSH** instead if you prefer: `git@github.com:marloxxx/document-management-system.git`.
+Use **SSH** if you prefer: `git@github.com:marloxxx/document-management-system.git`.
 
 ---
 
 ## Before you start (once per server)
 
-1. **Stack is up** — core services running so Docker networks exist:
+1. **Stack is up** — Docker networks exist:
 
    ```bash
    docker network ls | grep -E 'proxy|backend'
    ```
 
-   If missing, start the stack (e.g. `stackctl start core` from your operator’s docs).
-
 2. **DNS** — **A** (or **AAAA**) for your app hostname → this server’s public IP.
 
-3. **Database** — create a database and user for this app (credentials go into `.env`):
+3. **Database** — create a database and user (credentials go into `.env`):
 
    ```bash
    cd /opt/stack
    ./scripts/stack-manage.sh provision-db postgres your_project_name
    ```
-
-   Use the output (often also in `/opt/stack/.project-db-credentials.txt`).
 
 ---
 
@@ -51,9 +53,8 @@ cd /opt/apps
 
 git clone https://github.com/marloxxx/document-management-system.git
 cd document-management-system
+chmod +x scripts/compose.sh
 ```
-
-Stay on `main` or checkout a release tag if you use tags.
 
 ### 2. Create `.env`
 
@@ -63,51 +64,47 @@ cp .env.example .env
 
 Edit `.env` for production:
 
+- **`APP_URL`** — full URL, e.g. `https://dms.example.com`
 - `APP_ENV=production`, `APP_DEBUG=false`
-- `APP_KEY` — generate, e.g. `openssl rand -base64 32` then prefix with `base64:` or run `php artisan key:generate --show` on any machine with PHP
-- `APP_URL=https://your-hostname.example`
-- Uncomment and set **`APP_HOST`** (hostname only, no `https://`) — required for Traefik labels in `docker-compose.yml`
-- Optionally **`TRAEFIK_ROUTER_NAME`** (default in compose: `dms`; must be unique per router on the host)
+- `APP_KEY` — generate as usual
 - **`DB_*`** — from `provision-db` (e.g. `DB_HOST=postgres`, `DB_CONNECTION=pgsql`, …)
 - **`REDIS_*`** — `REDIS_HOST=redis`, password from the host stack `/opt/stack/.env`
 - `CACHE_STORE=redis`, `SESSION_DRIVER=redis`, `QUEUE_CONNECTION=redis` (recommended)
-- If your Docker networks are not named `proxy` / `backend`, set **`PROXY_NETWORK`** and **`BACKEND_NETWORK`** (see `.env.example` footer)
-
-Compose reads **`.env`** next to `docker-compose.yml` for both **variable substitution** (`${APP_HOST}`, …) and **`env_file`** inside containers.
+- Optional: **`PROXY_NETWORK`** / **`BACKEND_NETWORK`** if your networks are not named `proxy` / `backend` (see `.env.example` footer)
 
 ### 3. Build and start
 
+Use **`./scripts/compose.sh`** so **`TRAEFIK_HOST`** is set from **`APP_URL`** (do **not** run plain `docker compose up` for the app service, or Traefik labels will not get a valid hostname).
+
 ```bash
-docker compose build
-docker compose up -d
+./scripts/compose.sh build
+./scripts/compose.sh up -d
 ```
 
 Check:
 
 ```bash
-docker compose ps
-docker compose logs -f dms-app --tail=100
+./scripts/compose.sh ps
+./scripts/compose.sh logs -f dms-app --tail=100
 ```
 
 ### 4. Laravel (first deploy)
 
 ```bash
-docker compose exec dms-app php artisan migrate --force
-docker compose exec dms-app php artisan storage:link
+./scripts/compose.sh exec dms-app php artisan migrate --force
+./scripts/compose.sh exec dms-app php artisan storage:link
 ```
-
-Optional: `php artisan config:cache` after you are happy with `.env`.
 
 ### 5. Smoke test
 
-- In a browser: `https://your-hostname` (TLS via Traefik).
-- Health endpoint used by Compose: Laravel exposes **`/up`** (see `health: '/up'` in `bootstrap/app.php`).
+- Browser: your **`APP_URL`** (TLS via Traefik).
+- Health: Laravel **`/up`** (`health: '/up'` in `bootstrap/app.php`).
 
 ---
 
 ## Traefik / TLS
 
-This project’s `docker-compose.yml` sets `tls=true` on the router. If your Traefik setup requires a named certificate resolver (e.g. Let’s Encrypt), add the label your stack documents (often `traefik.http.routers.<name>.tls.certresolver=letsencrypt`).
+`docker-compose.yml` sets `tls=true` on the router. If your Traefik setup needs a cert resolver (e.g. Let’s Encrypt), add the label your stack documents.
 
 ---
 
@@ -116,12 +113,10 @@ This project’s `docker-compose.yml` sets `tls=true` on the router. If your Tra
 ```bash
 cd /opt/apps/document-management-system
 git pull
-docker compose build
-docker compose up -d
-docker compose exec dms-app php artisan migrate --force
+./scripts/compose.sh build
+./scripts/compose.sh up -d
+./scripts/compose.sh exec dms-app php artisan migrate --force
 ```
-
-Run `config:cache` again if you changed config.
 
 ---
 
@@ -129,15 +124,15 @@ Run `config:cache` again if you changed config.
 
 | Issue | What to check |
 |-------|----------------|
-| `APP_HOST` / Traefik errors on `compose up` | `.env` exists beside `docker-compose.yml` and defines `APP_HOST` (and router name if you customised it). |
-| Database connection errors | Container can reach `postgres` / `mysql` on **`backend`**; credentials match `provision-db`. |
-| Redis errors | `REDIS_PASSWORD` matches the stack `.env`; `REDIS_HOST=redis`. |
-| Unhealthy container | `docker compose logs dms-app`; hit `/up` inside the container per healthcheck. |
+| Traefik `Host()` wrong / blank | Use **`./scripts/compose.sh`**, not raw `docker compose`, so `TRAEFIK_HOST` is derived from **`APP_URL`**. |
+| `compose.sh: set APP_URL in .env` | **`APP_URL`** must be set and valid (e.g. `https://your-hostname`). |
+| Database / Redis | Same as before: `backend` network, credentials in `.env`. |
 
 ---
 
 ## Compose and `.env` (reference)
 
-- **Interpolation**: `${APP_HOST}`, `${TRAEFIK_ROUTER_NAME:-dms}`, `${BACKEND_NETWORK:-backend}` are read from the project **`.env`** when Compose parses the file.
-- **Containers**: `env_file: .env` passes the same file into `dms-app`, `dms-worker`, and `dms-scheduler`.
-- You do **not** need duplicate `environment:` entries in Compose for `APP_ENV` / `APP_DEBUG` if they are already in `.env`.
+- **`.env`** holds **`APP_URL`** (and Laravel vars). **No** `APP_HOST` / `TRAEFIK_HOST` in the file.
+- **`TRAEFIK_HOST`** exists only in the shell when you run **`scripts/compose.sh`**; Compose uses it for label interpolation.
+- **`TRAEFIK_ROUTER_NAME`** defaults to **`dms`** in `docker-compose.yml`; override by exporting it before `compose.sh` if you need a unique router name.
+- **`env_file: .env`** injects variables into containers.

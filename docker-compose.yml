@@ -1,7 +1,9 @@
 # VPS: Traefik + external networks proxy / backend (see docs/DEPLOY-VPS.md).
-# cp .env.example .env  # set APP_HOST, secrets, then:
-# docker compose build && docker compose up -d
-# docker compose exec dms-app php artisan migrate --force
+# cp .env.example .env  # set APP_URL (and DB, Redis, …), then:
+# ./scripts/compose.sh build && ./scripts/compose.sh up -d
+# ./scripts/compose.sh exec dms-app php artisan migrate --force
+#
+# TRAEFIK_HOST is derived from APP_URL by scripts/compose.sh (not stored in .env).
 
 services:
   dms-app:
