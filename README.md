@@ -52,9 +52,11 @@ A comprehensive document management system built with Laravel (PHP) and React (T
 
 ### 1. Clone Repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/marloxxx/document-management-system.git
 cd document-management-system
 ```
+
+For production on a VPS with Docker and Traefik, see **[docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)**.
 
 ### 2. Install Dependencies
 ```bash
