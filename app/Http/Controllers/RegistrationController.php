@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Registration;
 use App\Services\RegistrationNumberService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Yajra\DataTables\Facades\DataTables;
@@ -53,16 +51,16 @@ class RegistrationController extends Controller
                     'created_at',
                     'updated_at',
                 ])
-                ->when($user->role === 'CLIENT', fn($q) => $q->where('issued_to_user_id', $user->id));
+                ->when($user->role === 'CLIENT', fn ($q) => $q->where('issued_to_user_id', $user->id));
 
             // Apply search filter
             if ($request->filled('search.value')) {
                 $searchValue = $request->input('search.value');
                 $query->where(function ($q) use ($searchValue) {
-                    $q->where('number', 'like', '%' . $searchValue . '%')
+                    $q->where('number', 'like', '%'.$searchValue.'%')
                         ->orWhereHas('issuedTo', function ($userQuery) use ($searchValue) {
-                            $userQuery->where('name', 'like', '%' . $searchValue . '%')
-                                ->orWhere('email', 'like', '%' . $searchValue . '%');
+                            $userQuery->where('name', 'like', '%'.$searchValue.'%')
+                                ->orWhere('email', 'like', '%'.$searchValue.'%');
                         });
                 });
             }
@@ -95,7 +93,7 @@ class RegistrationController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new \Exception('Failed to retrieve registrations datatable data: ' . $e->getMessage());
+            throw new \Exception('Failed to retrieve registrations datatable data: '.$e->getMessage());
         }
     }
 
@@ -103,12 +101,13 @@ class RegistrationController extends Controller
     {
         $user = $r->user();
 
-        if (!$user) {
+        if (! $user) {
             if ($r->expectsJson() || $r->wantsJson()) {
                 return response()->json([
-                    'error' => 'User not authenticated'
+                    'error' => 'User not authenticated',
                 ], 401);
             }
+
             return redirect()->back()->withErrors(['error' => 'User not authenticated']);
         }
 
@@ -118,17 +117,18 @@ class RegistrationController extends Controller
             return response()->json([
                 'number' => $reg->number,
                 'registration_id' => $reg->id,
-                'state' => $reg->state
+                'state' => $reg->state,
             ]);
         }
 
         // For Inertia requests, redirect back with success message
-        return redirect()->back()->with('success', 'Registration number issued successfully: ' . $reg->number);
+        return redirect()->back()->with('success', 'Registration number issued successfully: '.$reg->number);
     }
 
     public function preview(): \Illuminate\Http\JsonResponse
     {
         $preview = $this->regSvc->preview();
+
         return response()->json(['registration_number' => $preview]);
     }
 }

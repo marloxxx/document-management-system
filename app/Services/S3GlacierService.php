@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 class S3GlacierService
 {
     protected $disk;
+
     protected $s3Client;
 
     public function __construct()
@@ -19,9 +20,9 @@ class S3GlacierService
         // Inisialisasi S3 Client untuk operasi advanced
         $this->s3Client = new S3Client([
             'version' => 'latest',
-            'region'  => config('filesystems.disks.s3_glacier.region'),
+            'region' => config('filesystems.disks.s3_glacier.region'),
             'credentials' => [
-                'key'    => config('filesystems.disks.s3_glacier.key'),
+                'key' => config('filesystems.disks.s3_glacier.key'),
                 'secret' => config('filesystems.disks.s3_glacier.secret'),
             ],
         ]);
@@ -29,10 +30,9 @@ class S3GlacierService
 
     /**
      * Upload file ke S3 Glacier
-     * 
-     * @param UploadedFile|string $file
-     * @param string $path
-     * @param string $storageClass GLACIER, DEEP_ARCHIVE, GLACIER_IR
+     *
+     * @param  UploadedFile|string  $file
+     * @param  string  $storageClass  GLACIER, DEEP_ARCHIVE, GLACIER_IR
      * @return string|false Path file yang diupload atau false jika gagal
      */
     public function uploadToGlacier($file, string $path, string $storageClass = 'GLACIER')
@@ -46,24 +46,24 @@ class S3GlacierService
 
             $result = $this->s3Client->putObject([
                 'Bucket' => config('filesystems.disks.s3_glacier.bucket'),
-                'Key'    => $path,
-                'Body'   => $content,
+                'Key' => $path,
+                'Body' => $content,
                 'StorageClass' => $storageClass,
             ]);
 
             return $path;
         } catch (\Exception $e) {
-            Log::error('Failed to upload to Glacier: ' . $e->getMessage());
+            Log::error('Failed to upload to Glacier: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * Inisiasi restore file dari Glacier
-     * 
-     * @param string $path
-     * @param int $days Jumlah hari file tersedia setelah restore
-     * @param string $tier Expedited, Standard, atau Bulk
+     *
+     * @param  int  $days  Jumlah hari file tersedia setelah restore
+     * @param  string  $tier  Expedited, Standard, atau Bulk
      * @return bool
      */
     public function initiateRestore(string $path, int $days = 7, string $tier = 'Standard')
@@ -71,7 +71,7 @@ class S3GlacierService
         try {
             $this->s3Client->restoreObject([
                 'Bucket' => config('filesystems.disks.s3_glacier.bucket'),
-                'Key'    => $path,
+                'Key' => $path,
                 'RestoreRequest' => [
                     'Days' => $days,
                     'GlacierJobParameters' => [
@@ -82,15 +82,15 @@ class S3GlacierService
 
             return true;
         } catch (\Exception $e) {
-            Log::error('Failed to initiate restore: ' . $e->getMessage());
+            Log::error('Failed to initiate restore: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * Cek status restore file
-     * 
-     * @param string $path
+     *
      * @return array Status restore
      */
     public function checkRestoreStatus(string $path): array
@@ -98,15 +98,15 @@ class S3GlacierService
         try {
             $result = $this->s3Client->headObject([
                 'Bucket' => config('filesystems.disks.s3_glacier.bucket'),
-                'Key'    => $path,
+                'Key' => $path,
             ]);
 
             $restore = $result->get('Restore');
 
-            if (!$restore) {
+            if (! $restore) {
                 return [
                     'status' => 'not_archived',
-                    'message' => 'File tidak dalam status archived'
+                    'message' => 'File tidak dalam status archived',
                 ];
             }
 
@@ -114,35 +114,36 @@ class S3GlacierService
             if (strpos($restore, 'ongoing-request="true"') !== false) {
                 return [
                     'status' => 'in_progress',
-                    'message' => 'Restore sedang dalam proses'
+                    'message' => 'Restore sedang dalam proses',
                 ];
             } elseif (strpos($restore, 'ongoing-request="false"') !== false) {
                 preg_match('/expiry-date="([^"]+)"/', $restore, $matches);
+
                 return [
                     'status' => 'completed',
                     'message' => 'Restore selesai',
-                    'expiry_date' => $matches[1] ?? null
+                    'expiry_date' => $matches[1] ?? null,
                 ];
             }
 
             return [
                 'status' => 'unknown',
                 'message' => 'Status tidak diketahui',
-                'raw' => $restore
+                'raw' => $restore,
             ];
         } catch (\Exception $e) {
-            Log::error('Failed to check restore status: ' . $e->getMessage());
+            Log::error('Failed to check restore status: '.$e->getMessage());
+
             return [
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ];
         }
     }
 
     /**
      * Download file yang sudah di-restore
-     * 
-     * @param string $path
+     *
      * @return string|false Content file atau false jika gagal
      */
     public function downloadRestoredFile(string $path)
@@ -151,53 +152,50 @@ class S3GlacierService
             $status = $this->checkRestoreStatus($path);
 
             if ($status['status'] !== 'completed' && $status['status'] !== 'not_archived') {
-                throw new \Exception('File belum selesai di-restore. Status: ' . $status['status']);
+                throw new \Exception('File belum selesai di-restore. Status: '.$status['status']);
             }
 
             return $this->disk->get($path);
         } catch (\Exception $e) {
-            Log::error('Failed to download restored file: ' . $e->getMessage());
+            Log::error('Failed to download restored file: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * Hapus file dari Glacier
-     * 
-     * @param string $path
-     * @return bool
      */
     public function deleteFile(string $path): bool
     {
         try {
             return $this->disk->delete($path);
         } catch (\Exception $e) {
-            Log::error('Failed to delete file: ' . $e->getMessage());
+            Log::error('Failed to delete file: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * List semua file di bucket
-     * 
-     * @param string $prefix
-     * @return array
      */
     public function listFiles(string $prefix = ''): array
     {
         try {
             $files = $this->disk->files($prefix);
+
             return $files;
         } catch (\Exception $e) {
-            Log::error('Failed to list files: ' . $e->getMessage());
+            Log::error('Failed to list files: '.$e->getMessage());
+
             return [];
         }
     }
 
     /**
      * Get file metadata
-     * 
-     * @param string $path
+     *
      * @return array|false
      */
     public function getFileMetadata(string $path)
@@ -205,7 +203,7 @@ class S3GlacierService
         try {
             $result = $this->s3Client->headObject([
                 'Bucket' => config('filesystems.disks.s3_glacier.bucket'),
-                'Key'    => $path,
+                'Key' => $path,
             ]);
 
             return [
@@ -216,7 +214,8 @@ class S3GlacierService
                 'etag' => $result->get('ETag'),
             ];
         } catch (\Exception $e) {
-            Log::error('Failed to get file metadata: ' . $e->getMessage());
+            Log::error('Failed to get file metadata: '.$e->getMessage());
+
             return false;
         }
     }

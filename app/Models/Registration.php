@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Registration extends Model
 {
     use HasActivityLog;
+
     protected $fillable = [
         'year',
         'month',
@@ -16,7 +17,7 @@ class Registration extends Model
         'state',
         'issued_to_user_id',
         'issued_at',
-        'expires_at'
+        'expires_at',
     ];
 
     protected $casts = [

@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Yajra\DataTables\Facades\DataTables;
 use Spatie\Activitylog\Models\Activity;
+use Yajra\DataTables\Facades\DataTables;
 
 class ActivityLogController extends Controller
 {
@@ -60,7 +59,9 @@ class ActivityLogController extends Controller
                     return $activity->causer ? $activity->causer->email : '-';
                 })
                 ->addColumn('subject_name', function ($activity) {
-                    if (!$activity->subject) return '-';
+                    if (! $activity->subject) {
+                        return '-';
+                    }
 
                     if ($activity->subject_type === 'App\\Models\\User') {
                         return $activity->subject->name;
@@ -74,7 +75,7 @@ class ActivityLogController extends Controller
                         return $activity->subject->number;
                     }
 
-                    return class_basename($activity->subject_type) . ' #' . $activity->subject_id;
+                    return class_basename($activity->subject_type).' #'.$activity->subject_id;
                 })
                 ->addColumn('ip_address', function ($activity) {
                     return $activity->properties['ip_address'] ?? '-';
@@ -136,7 +137,7 @@ class ActivityLogController extends Controller
             ];
         }
 
-        $filename = 'activity_logs_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filename = 'activity_logs_'.now()->format('Y-m-d_H-i-s').'.csv';
 
         $callback = function () use ($csvData) {
             $file = fopen('php://output', 'w');
@@ -148,7 +149,7 @@ class ActivityLogController extends Controller
 
         return response()->stream($callback, 200, [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 }

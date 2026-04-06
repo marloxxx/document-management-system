@@ -34,6 +34,7 @@ class MonitorEvidenceJobs extends Command
 
         if ($watch) {
             $this->watchJobs();
+
             return;
         }
 
@@ -43,8 +44,9 @@ class MonitorEvidenceJobs extends Command
                 break;
             case 'show':
                 $jobId = $this->option('job');
-                if (!$jobId) {
+                if (! $jobId) {
                     $this->error('Please provide --job option');
+
                     return 1;
                 }
                 $this->showJob($jobId);
@@ -54,6 +56,7 @@ class MonitorEvidenceJobs extends Command
                 break;
             default:
                 $this->error('Invalid action. Use: list, show, or clear');
+
                 return 1;
         }
 
@@ -73,6 +76,7 @@ class MonitorEvidenceJobs extends Command
 
         if (empty($jobs)) {
             $this->warn('No active jobs found.');
+
             return;
         }
 
@@ -84,9 +88,9 @@ class MonitorEvidenceJobs extends Command
             $updatedAt = $data['updated_at'] ?? '-';
 
             $tableData[] = [
-                'job_id' => substr($jobId, 0, 20) . '...',
+                'job_id' => substr($jobId, 0, 20).'...',
                 'status' => $this->colorizeStatus($status),
-                'progress' => round($progress, 1) . '%',
+                'progress' => round($progress, 1).'%',
                 'message' => substr($message, 0, 40),
                 'updated' => $updatedAt,
             ];
@@ -98,7 +102,7 @@ class MonitorEvidenceJobs extends Command
         );
 
         $this->line('');
-        $this->info('Total jobs: ' . count($jobs));
+        $this->info('Total jobs: '.count($jobs));
         $this->line('Use: php artisan evidence:monitor show --job=<job_id> for details');
     }
 
@@ -107,30 +111,31 @@ class MonitorEvidenceJobs extends Command
      */
     protected function showJob(string $jobId)
     {
-        $data = Cache::get('evidence_download_job_' . $jobId);
+        $data = Cache::get('evidence_download_job_'.$jobId);
 
-        if (!$data) {
-            $this->error('Job not found: ' . $jobId);
+        if (! $data) {
+            $this->error('Job not found: '.$jobId);
+
             return;
         }
 
-        $this->info('📄 Job Details: ' . $jobId);
+        $this->info('📄 Job Details: '.$jobId);
         $this->line('');
 
         $status = $data['status'] ?? 'unknown';
-        $this->line('Status:     ' . $this->colorizeStatus($status));
-        $this->line('Progress:   ' . round($data['progress'] ?? 0, 1) . '%');
-        $this->line('Message:    ' . ($data['message'] ?? '-'));
-        $this->line('Created:    ' . ($data['created_at'] ?? '-'));
-        $this->line('Updated:    ' . ($data['updated_at'] ?? '-'));
+        $this->line('Status:     '.$this->colorizeStatus($status));
+        $this->line('Progress:   '.round($data['progress'] ?? 0, 1).'%');
+        $this->line('Message:    '.($data['message'] ?? '-'));
+        $this->line('Created:    '.($data['created_at'] ?? '-'));
+        $this->line('Updated:    '.($data['updated_at'] ?? '-'));
 
         if (isset($data['filename'])) {
-            $this->line('Filename:   ' . $data['filename']);
+            $this->line('Filename:   '.$data['filename']);
 
-            $filepath = storage_path('app/temp/' . $data['filename']);
+            $filepath = storage_path('app/temp/'.$data['filename']);
             if (file_exists($filepath)) {
                 $size = filesize($filepath);
-                $this->line('File Size:  ' . $this->formatBytes($size));
+                $this->line('File Size:  '.$this->formatBytes($size));
             }
         }
 
@@ -160,11 +165,11 @@ class MonitorEvidenceJobs extends Command
 
             // Clear completed or failed jobs
             if (in_array($status, ['completed', 'failed'])) {
-                Cache::forget('evidence_download_job_' . $jobId);
+                Cache::forget('evidence_download_job_'.$jobId);
 
                 // Also delete the zip file if exists
                 if (isset($data['filename'])) {
-                    $filepath = storage_path('app/temp/' . $data['filename']);
+                    $filepath = storage_path('app/temp/'.$data['filename']);
                     if (file_exists($filepath)) {
                         unlink($filepath);
                     }
@@ -209,9 +214,9 @@ class MonitorEvidenceJobs extends Command
                     $message = $data['message'] ?? '-';
 
                     $tableData[] = [
-                        'job_id' => substr($jobId, 0, 20) . '...',
+                        'job_id' => substr($jobId, 0, 20).'...',
                         'status' => $this->colorizeStatus($status),
-                        'progress' => round($progress, 1) . '%',
+                        'progress' => round($progress, 1).'%',
                         'message' => substr($message, 0, 40),
                     ];
                 }
@@ -222,7 +227,7 @@ class MonitorEvidenceJobs extends Command
                 );
 
                 $this->line('');
-                $this->info('Total jobs: ' . count($jobs));
+                $this->info('Total jobs: '.count($jobs));
             }
 
             sleep(2);
@@ -241,7 +246,7 @@ class MonitorEvidenceJobs extends Command
         $jobs = [];
         $cacheDir = storage_path('framework/cache/data');
 
-        if (!is_dir($cacheDir)) {
+        if (! is_dir($cacheDir)) {
             return $jobs;
         }
 
@@ -260,7 +265,7 @@ class MonitorEvidenceJobs extends Command
                         preg_match('/evidence_download_job_([^"]+)/', $content, $matches);
                         if (isset($matches[1])) {
                             $jobId = $matches[1];
-                            $jobData = Cache::get('evidence_download_job_' . $jobId);
+                            $jobData = Cache::get('evidence_download_job_'.$jobId);
                             if ($jobData) {
                                 $jobs[$jobId] = $jobData;
                             }
@@ -298,6 +303,7 @@ class MonitorEvidenceJobs extends Command
             $bytes /= 1024;
             $i++;
         }
-        return round($bytes, 2) . ' ' . $units[$i];
+
+        return round($bytes, 2).' '.$units[$i];
     }
 }

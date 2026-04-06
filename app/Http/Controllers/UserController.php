@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +72,7 @@ class UserController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new \Exception('Failed to retrieve users datatable data: ' . $e->getMessage());
+            throw new \Exception('Failed to retrieve users datatable data: '.$e->getMessage());
         }
     }
 
@@ -121,7 +119,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         return Inertia::render('Users/Edit', [
-            'user' => $user
+            'user' => $user,
         ]);
     }
 
@@ -175,6 +173,7 @@ class UserController extends Controller
             if (request()->wantsJson()) {
                 return response()->json(['error' => 'You cannot delete your own account.'], 403);
             }
+
             return redirect()->route('users.index')
                 ->with('error', 'You cannot delete your own account.');
         }

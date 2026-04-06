@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('documents', function (Blueprint $table) {
             // tambahkan FK ke registrations hanya jika belum ada
-            if (!Schema::hasColumn('documents', 'registration_id')) {
+            if (! Schema::hasColumn('documents', 'registration_id')) {
                 $table->foreignId('registration_id')->after('owner_user_id')
                     ->nullable()->constrained('registrations')->nullOnDelete();
             }
@@ -23,7 +23,7 @@ return new class extends Migration
         });
 
         // tambahkan unique constraint: 1 registration = 1 document
-        if (!Schema::hasIndex('documents', 'documents_registration_id_unique')) {
+        if (! Schema::hasIndex('documents', 'documents_registration_id_unique')) {
             Schema::table('documents', function (Blueprint $table) {
                 $table->unique('registration_id'); // Satu nomor registrasi hanya untuk satu dokumen
             });

@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Inertia\Inertia;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use App\Services\ActivityLogService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 use Spatie\Activitylog\Models\Activity;
 
 class ProfileController extends Controller
@@ -31,7 +31,7 @@ class ProfileController extends Controller
      */
     public function update(Request $request): RedirectResponse
     {
-        /** @var User $user **/
+        /** @var User $user * */
         $user = Auth::user();
 
         $request->validate([
@@ -147,7 +147,9 @@ class ProfileController extends Controller
 
             return \Yajra\DataTables\Facades\DataTables::of($query)
                 ->addColumn('subject_name', function ($activity) {
-                    if (!$activity->subject) return '-';
+                    if (! $activity->subject) {
+                        return '-';
+                    }
 
                     if ($activity->subject_type === 'App\\Models\\User') {
                         return $activity->subject->name;
@@ -161,7 +163,7 @@ class ProfileController extends Controller
                         return $activity->subject->number;
                     }
 
-                    return class_basename($activity->subject_type) . ' #' . $activity->subject_id;
+                    return class_basename($activity->subject_type).' #'.$activity->subject_id;
                 })
                 ->addColumn('ip_address', function ($activity) {
                     return $activity->properties['ip_address'] ?? '-';

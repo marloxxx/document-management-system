@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
+use App\Helpers\DirectionHelper;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Registration;
 use App\Models\User;
-use Illuminate\Http\Request;
-use App\Helpers\DirectionHelper;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
-use Yajra\DataTables\Facades\DataTables;
 use App\Services\DocumentTemplateService;
 use App\Services\RegistrationNumberService;
 use App\Services\S3GlacierService;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Yajra\DataTables\Facades\DataTables;
 
 class DocumentController extends Controller
 {
@@ -70,9 +70,9 @@ class DocumentController extends Controller
                     'updated_at',
                     'owner_user_id',
                     'document_type_id',
-                    'registration_id'
+                    'registration_id',
                 ])
-                ->when($user->role === 'CLIENT', fn($q) => $q->where('owner_user_id', $user->id));
+                ->when($user->role === 'CLIENT', fn ($q) => $q->where('owner_user_id', $user->id));
 
             // Apply filters
             if ($r->has('direction') && $r->direction !== 'all') {
@@ -90,7 +90,7 @@ class DocumentController extends Controller
 
             // Apply search
             if ($r->filled('q')) {
-                $kw = '%' . $r->q . '%';
+                $kw = '%'.$r->q.'%';
                 $query->where(function ($w) use ($kw) {
                     $w->where('registration_number', 'like', $kw)
                         ->orWhere('title', 'like', $kw)
@@ -108,6 +108,7 @@ class DocumentController extends Controller
                     if ($document->document_type_id && $document->type) {
                         return $document->type->name;
                     }
+
                     return $document->document_type_text ?: 'Not specified';
                 })
                 ->addColumn('registration', function ($document) {
@@ -122,7 +123,7 @@ class DocumentController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to fetch documents data',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -149,6 +150,7 @@ class DocumentController extends Controller
     public function previewNumber(): \Illuminate\Http\JsonResponse
     {
         $preview = $this->regSvc->preview();
+
         return response()->json(['registration_number' => $preview]);
     }
 
@@ -158,16 +160,16 @@ class DocumentController extends Controller
 
         // Strict validation for document creation
         $validationRules = [
-            'registration_number'  => 'required|exists:registrations,number',
-            'direction'            => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
-            'document_type_id'     => 'nullable|exists:document_types,id',
-            'document_type_text'   => 'nullable|string|max:255',
-            'page_count'          => 'required|integer|min:1',
-            'title'               => 'nullable|string|max:255',
-            'notes'               => 'nullable|string',
-            'user_identity'       => 'nullable|string',
-            'issued_date'         => 'nullable|date',
-            'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
+            'registration_number' => 'required|exists:registrations,number',
+            'direction' => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
+            'document_type_id' => 'nullable|exists:document_types,id',
+            'document_type_text' => 'nullable|string|max:255',
+            'page_count' => 'required|integer|min:1',
+            'title' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+            'user_identity' => 'nullable|string',
+            'issued_date' => 'nullable|date',
+            'evidence' => 'nullable|file|mimes:pdf,doc,docx|max:20480',
         ];
 
         $data = $r->validate($validationRules);
@@ -189,7 +191,7 @@ class DocumentController extends Controller
                 throw ValidationException::withMessages(['registration_number' => 'Registration number ini sudah digunakan dan tidak bisa ditambah dokumen lagi.']);
             }
 
-            $doc = new Document();
+            $doc = new Document;
             $doc->fill([
                 'owner_user_id' => $user->id,
                 'registration_id' => $reg->id,
@@ -211,8 +213,8 @@ class DocumentController extends Controller
 
             if (request()->hasFile('evidence')) {
                 $file = request()->file('evidence');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $path = 'documents/' . now()->format('Y/m') . '/' . $fileName;
+                $fileName = time().'_'.$file->getClientOriginalName();
+                $path = 'documents/'.now()->format('Y/m').'/'.$fileName;
 
                 // Upload to S3 Glacier
                 $uploadResult = $this->s3GlacierService->uploadToGlacier($file, $path, 'GLACIER');
@@ -293,32 +295,32 @@ class DocumentController extends Controller
         // For draft, use more lenient validation - only validate format if data is provided
         if ($isDraft) {
             $validationRules = [
-                'registration_number'  => 'nullable|string',
-                'direction'            => 'nullable|string',
-                'document_type_id'     => 'nullable|string',
-                'document_type_text'   => 'nullable|string|max:255',
-                'page_count'          => 'nullable|string',
-                'title'               => 'nullable|string|max:255',
-                'notes'               => 'nullable|string',
-                'user_identity'       => 'nullable|string',
-                'issued_date'         => 'nullable|string',
-                'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
-                'is_draft'            => 'nullable|string',
+                'registration_number' => 'nullable|string',
+                'direction' => 'nullable|string',
+                'document_type_id' => 'nullable|string',
+                'document_type_text' => 'nullable|string|max:255',
+                'page_count' => 'nullable|string',
+                'title' => 'nullable|string|max:255',
+                'notes' => 'nullable|string',
+                'user_identity' => 'nullable|string',
+                'issued_date' => 'nullable|string',
+                'evidence' => 'nullable|file|mimes:pdf,doc,docx|max:20480',
+                'is_draft' => 'nullable|string',
             ];
         } else {
             // For non-draft, use strict validation
             $validationRules = [
-                'registration_number'  => 'required|exists:registrations,number',
-                'direction'            => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
-                'document_type_id'     => 'nullable|exists:document_types,id',
-                'document_type_text'   => 'nullable|string|max:255',
-                'page_count'          => 'required|numeric|min:1',
-                'title'               => 'nullable|string|max:255',
-                'notes'               => 'nullable|string',
-                'user_identity'       => 'nullable|string',
-                'issued_date'         => 'nullable|date',
-                'evidence'            => 'nullable|file|mimes:pdf,doc,docx|max:20480',
-                'is_draft'            => 'nullable|string',
+                'registration_number' => 'required|exists:registrations,number',
+                'direction' => 'required|in:Indo-Mandarin,Mandarin-Indo,Indo-Taiwan,Taiwan-Indo',
+                'document_type_id' => 'nullable|exists:document_types,id',
+                'document_type_text' => 'nullable|string|max:255',
+                'page_count' => 'required|numeric|min:1',
+                'title' => 'nullable|string|max:255',
+                'notes' => 'nullable|string',
+                'user_identity' => 'nullable|string',
+                'issued_date' => 'nullable|date',
+                'evidence' => 'nullable|file|mimes:pdf,doc,docx|max:20480',
+                'is_draft' => 'nullable|string',
             ];
         }
 
@@ -343,7 +345,7 @@ class DocumentController extends Controller
 
         return DB::transaction(function () use ($data, $document, $status, $isDraft) {
             // For draft, we might not have all required fields, so handle gracefully
-            if ($isDraft && (!isset($data['registration_number']) || !$data['registration_number'])) {
+            if ($isDraft && (! isset($data['registration_number']) || ! $data['registration_number'])) {
                 // For draft without registration number, keep existing registration
                 $reg = $document->registration;
             } else {
@@ -415,8 +417,8 @@ class DocumentController extends Controller
 
             if (request()->hasFile('evidence')) {
                 $file = request()->file('evidence');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $path = 'documents/' . now()->format('Y/m') . '/' . $fileName;
+                $fileName = time().'_'.$file->getClientOriginalName();
+                $path = 'documents/'.now()->format('Y/m').'/'.$fileName;
 
                 // Upload to S3 Glacier
                 $uploadResult = $this->s3GlacierService->uploadToGlacier($file, $path, 'GLACIER');
@@ -479,7 +481,7 @@ class DocumentController extends Controller
     {
         $this->authorize('view', $document);
 
-        if (!$document->evidence_path) {
+        if (! $document->evidence_path) {
             abort(404, 'Evidence file not found');
         }
 
@@ -501,7 +503,7 @@ class DocumentController extends Controller
 
                 return response($content)
                     ->header('Content-Type', $mimeType)
-                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                    ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
             } elseif ($restoreStatus['status'] === 'completed') {
                 // File has been restored and is ready for download
                 $content = $this->s3GlacierService->downloadRestoredFile($document->evidence_path);
@@ -515,12 +517,12 @@ class DocumentController extends Controller
 
                 return response($content)
                     ->header('Content-Type', $mimeType)
-                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                    ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
             } elseif ($restoreStatus['status'] === 'in_progress') {
                 // Restore is already in progress
                 return response()->json([
                     'message' => 'File restore is in progress. Please try again in a few hours.',
-                    'status' => 'in_progress'
+                    'status' => 'in_progress',
                 ], 202);
             } else {
                 // File needs to be restored first
@@ -529,14 +531,14 @@ class DocumentController extends Controller
                 if ($initiated) {
                     return response()->json([
                         'message' => 'File restore has been initiated. This process may take 3-5 hours. Please try downloading again later.',
-                        'status' => 'initiated'
+                        'status' => 'initiated',
                     ], 202);
                 } else {
                     abort(500, 'Failed to initiate file restore');
                 }
             }
         } catch (\Exception $e) {
-            abort(500, 'Failed to process download: ' . $e->getMessage());
+            abort(500, 'Failed to process download: '.$e->getMessage());
         }
     }
 
@@ -555,14 +557,14 @@ class DocumentController extends Controller
         // Only get suggestions from documents owned by the current user
         $suggestions = Document::where('owner_user_id', $user->id)
             ->whereNotNull('user_identity')
-            ->where('user_identity', 'like', '%' . $query . '%')
+            ->where('user_identity', 'like', '%'.$query.'%')
             ->distinct()
             ->pluck('user_identity')
             ->take(10)
             ->map(function ($identity) {
                 return [
                     'value' => $identity,
-                    'label' => $identity
+                    'label' => $identity,
                 ];
             })
             ->values();
@@ -611,7 +613,7 @@ class DocumentController extends Controller
         }
 
         // Initialize job status in cache
-        Cache::put('evidence_download_job_' . $jobId, [
+        Cache::put('evidence_download_job_'.$jobId, [
             'status' => 'queued',
             'message' => 'Job sedang dalam antrian...',
             'progress' => 0,
@@ -623,7 +625,7 @@ class DocumentController extends Controller
 
         return response()->json([
             'job_id' => $jobId,
-            'message' => 'Download job telah dimulai. Anda akan menerima notifikasi ketika selesai.'
+            'message' => 'Download job telah dimulai. Anda akan menerima notifikasi ketika selesai.',
         ]);
     }
 
@@ -632,11 +634,11 @@ class DocumentController extends Controller
      */
     public function checkEvidenceDownloadStatus(Request $request, string $jobId)
     {
-        $status = Cache::get('evidence_download_job_' . $jobId);
+        $status = Cache::get('evidence_download_job_'.$jobId);
 
-        if (!$status) {
+        if (! $status) {
             return response()->json([
-                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.'
+                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.',
             ], 404);
         }
 
@@ -648,26 +650,26 @@ class DocumentController extends Controller
      */
     public function downloadEvidenceZip(Request $request, string $jobId)
     {
-        $status = Cache::get('evidence_download_job_' . $jobId);
+        $status = Cache::get('evidence_download_job_'.$jobId);
 
-        if (!$status) {
+        if (! $status) {
             return response()->json([
-                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.'
+                'error' => 'Job tidak ditemukan atau sudah kedaluwarsa.',
             ], 404);
         }
 
         if ($status['status'] !== 'completed') {
             return response()->json([
                 'error' => 'File belum siap untuk diunduh.',
-                'status' => $status['status']
+                'status' => $status['status'],
             ], 422);
         }
 
-        $zipPath = storage_path('app/temp/' . $status['filename']);
+        $zipPath = storage_path('app/temp/'.$status['filename']);
 
-        if (!file_exists($zipPath)) {
+        if (! file_exists($zipPath)) {
             return response()->json([
-                'error' => 'File tidak ditemukan.'
+                'error' => 'File tidak ditemukan.',
             ], 404);
         }
 
@@ -701,7 +703,7 @@ class DocumentController extends Controller
         }
 
         // Filter by selected IDs if provided
-        if (!empty($ids)) {
+        if (! empty($ids)) {
             $query->whereIn('id', $ids);
         }
 
@@ -719,7 +721,7 @@ class DocumentController extends Controller
                 $directionsToExport = ['Mandarin-Indo', 'Taiwan-Indo'];
             }
 
-            if (!empty($directionsToExport)) {
+            if (! empty($directionsToExport)) {
                 $query->whereIn('direction', $directionsToExport);
             }
         }
@@ -738,7 +740,7 @@ class DocumentController extends Controller
         // Check if any documents found
         if ($documents->isEmpty()) {
             return response()->json([
-                'error' => 'No documents found matching the selected criteria.'
+                'error' => 'No documents found matching the selected criteria.',
             ], 404);
         }
 
@@ -781,7 +783,7 @@ class DocumentController extends Controller
             return response()->download($result['path'], $result['filename'])->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Export failed: ' . $e->getMessage()
+                'error' => 'Export failed: '.$e->getMessage(),
             ], 500);
         }
     }

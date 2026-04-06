@@ -16,7 +16,7 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!Auth::check() || Auth::user()->role !== 'ADMIN') {
+        if (! Auth::check() || Auth::user()->role !== 'ADMIN') {
             abort(403, 'Access denied. Admin privileges required.');
         }
 

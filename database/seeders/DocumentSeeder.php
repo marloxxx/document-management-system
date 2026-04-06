@@ -4,9 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Document;
 use App\Models\DocumentType;
-use App\Models\Registration;
-use App\Models\User;
-use App\Helpers\RomanNumerals;
 use Illuminate\Database\Seeder;
 
 class DocumentSeeder extends Seeder

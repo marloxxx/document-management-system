@@ -14,7 +14,7 @@ class DocumentTemplateService
         $this->templatePath = storage_path('app/templates/');
 
         // Ensure templates directory exists
-        if (!file_exists($this->templatePath)) {
+        if (! file_exists($this->templatePath)) {
             mkdir($this->templatePath, 0755, true);
         }
     }
@@ -29,7 +29,7 @@ class DocumentTemplateService
         $endDate = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
 
         // Create new PhpWord instance
-        $phpWord = new \PhpOffice\PhpWord\PhpWord();
+        $phpWord = new \PhpOffice\PhpWord\PhpWord;
 
         // Set default font
         $phpWord->setDefaultFontName('Times New Roman');
@@ -76,12 +76,12 @@ class DocumentTemplateService
         $this->addFooterNotes($contentSection);
 
         // Save to temporary file
-        $filename = 'Buku_Repertorium_' . strtoupper($this->getMonthName($startDate->month)) . '_' .
-            $startDate->year . '_' . date('Y_m_d_His') . '.docx';
-        $tempPath = storage_path('app/temp/' . $filename);
+        $filename = 'Buku_Repertorium_'.strtoupper($this->getMonthName($startDate->month)).'_'.
+            $startDate->year.'_'.date('Y_m_d_His').'.docx';
+        $tempPath = storage_path('app/temp/'.$filename);
 
         // Ensure temp directory exists
-        if (!file_exists(storage_path('app/temp'))) {
+        if (! file_exists(storage_path('app/temp'))) {
             mkdir(storage_path('app/temp'), 0755, true);
         }
 
@@ -91,7 +91,7 @@ class DocumentTemplateService
         return [
             'path' => $tempPath,
             'filename' => $filename,
-            'size' => filesize($tempPath)
+            'size' => filesize($tempPath),
         ];
     }
 
@@ -115,7 +115,7 @@ class DocumentTemplateService
                 );
             } catch (\Exception $e) {
                 // If image fails, log and skip
-                Log::warning('Failed to add header image: ' . $e->getMessage());
+                Log::warning('Failed to add header image: '.$e->getMessage());
             }
         }
     }
@@ -139,7 +139,7 @@ class DocumentTemplateService
                 ]);
             } catch (\Exception $e) {
                 // If image fails, log and skip
-                Log::warning('Failed to add cover image: ' . $e->getMessage());
+                Log::warning('Failed to add cover image: '.$e->getMessage());
             }
         }
 
@@ -209,7 +209,6 @@ class DocumentTemplateService
             ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER, 'spaceAfter' => 200]
         );
     }
-
 
     /**
      * Add documents table
@@ -289,7 +288,6 @@ class DocumentTemplateService
         return "TERJEMAHAN BULAN {$startMonth} TAHUN {$year} s.d BULAN {$endMonth} TAHUN {$year}";
     }
 
-
     /**
      * Get direction text for template header
      */
@@ -302,7 +300,6 @@ class DocumentTemplateService
 
         return $directionMap[$direction] ?? 'BAHASA MANDARIN – BAHASA INDONESIA';
     }
-
 
     /**
      * Get month name in Indonesian
@@ -321,7 +318,7 @@ class DocumentTemplateService
             9 => 'SEPTEMBER',
             10 => 'OKTOBER',
             11 => 'NOVEMBER',
-            12 => 'DESEMBER'
+            12 => 'DESEMBER',
         ];
 
         return $months[$month] ?? 'JANUARI';
@@ -337,7 +334,7 @@ class DocumentTemplateService
             'Mandarin-Indo' => 'Mandarin-Indo',
             'Indo-Mandarin' => 'Indo-Mandarin',
             'Indo-Taiwan' => 'Indo-Taiwan',
-            'Taiwan-Indo' => 'Taiwan-Indo'
+            'Taiwan-Indo' => 'Taiwan-Indo',
         ];
 
         return $directionMap[$direction] ?? 'Mandarin-Indo';

@@ -2,11 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Document;
+use App\Helpers\RomanNumerals;
 use App\Models\NumberCounter;
 use App\Models\Registration;
 use App\Models\User;
-use App\Helpers\RomanNumerals;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -28,10 +27,10 @@ class RegistrationNumberService
                     // by checking existing registrations and incrementing from there
 
                     // First, ensure the counter exists
-                    DB::statement("
+                    DB::statement('
                         INSERT IGNORE INTO number_counters (year, month, current_seq) 
                         VALUES (?, ?, 0)
-                    ", [$y, $m]);
+                    ', [$y, $m]);
 
                     // Get the current counter value
                     $counter = NumberCounter::where(['year' => $y, 'month' => $m])->first();
@@ -76,20 +75,21 @@ class RegistrationNumberService
                     'max_retries' => $maxRetries,
                     'year' => $y ?? null,
                     'month' => $m ?? null,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
 
                 if ($retryCount >= $maxRetries) {
                     Log::error('Failed to issue registration number after maximum retries', [
                         'user_id' => $user->id,
                         'retry_count' => $retryCount,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                     throw $e;
                 }
 
                 // Wait a small random amount before retrying to reduce collision probability
                 usleep(rand(10000, 100000)); // 10-100ms
+
                 continue;
             }
         }
@@ -103,7 +103,7 @@ class RegistrationNumberService
     {
         $count = $reg->documents()->count();
         $reg->update([
-            'state' => $count === 0 ? 'ISSUED' : 'COMMITTED'
+            'state' => $count === 0 ? 'ISSUED' : 'COMMITTED',
         ]);
     }
 
@@ -116,6 +116,7 @@ class RegistrationNumberService
         $counter = NumberCounter::where(['year' => $y, 'month' => $m])->first();
         $seq = ($counter?->current_seq ?? 0) + 1;
         $romanMonth = RomanNumerals::toRoman($m);
+
         return sprintf('%02d/%s/%04d', $seq, $romanMonth, $y);
     }
 }

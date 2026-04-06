@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use Spatie\Activitylog\Models\Activity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Spatie\Activitylog\Models\Activity;
 
 class ActivityLogService
 {
-    public static function logUserAction(string $action, Model $model = null, array $properties = []): void
+    public static function logUserAction(string $action, ?Model $model = null, array $properties = []): void
     {
         $user = Auth::user();
 

@@ -20,7 +20,7 @@ return new class extends Migration
             $table->unsignedInteger('current_seq')->default(0);
             $table->timestamps();
 
-            $table->unique(['year', 'month', 'direction'/*,'owner_user_id'*/]);
+            $table->unique(['year', 'month', 'direction'/* ,'owner_user_id' */]);
         });
     }
 

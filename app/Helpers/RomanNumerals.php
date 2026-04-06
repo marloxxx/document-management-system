@@ -25,7 +25,7 @@ class RomanNumerals
             9 => 'IX',
             10 => 'X',
             11 => 'XI',
-            12 => 'XII'
+            12 => 'XII',
         ];
 
         return $romanNumerals[$number] ?? (string) $number;
@@ -48,7 +48,7 @@ class RomanNumerals
             'IX' => 9,
             'X' => 10,
             'XI' => 11,
-            'XII' => 12
+            'XII' => 12,
         ];
 
         return $romanToInt[$roman] ?? 0;

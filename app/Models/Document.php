@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Document extends Model
 {
     use HasActivityLog;
+
     protected $fillable = [
         'owner_user_id',
         'registration_id',
@@ -28,7 +29,7 @@ class Document extends Model
         'evidence_size',
         'status',
         'created_by',
-        'updated_by'
+        'updated_by',
     ];
 
     public function owner()
