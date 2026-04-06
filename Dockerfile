@@ -51,6 +51,7 @@ RUN npm ci
 COPY resources ./resources
 COPY public ./public
 COPY vite.config.js ./vite.config.js
+COPY tsconfig.json ./tsconfig.json
 RUN npm run build
 
 FROM webdevops/php-nginx:8.4-alpine

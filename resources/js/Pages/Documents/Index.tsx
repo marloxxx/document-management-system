@@ -355,7 +355,7 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
   // Handle download all evidence files with background job
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<number>(0)
-  const [downloadStatus, setDownloadStatus] = useState<string>('')
+  const [, setDownloadStatus] = useState<string>('')
 
   const handleDownloadAllEvidence = async () => {
     try {

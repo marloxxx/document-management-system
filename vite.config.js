@@ -4,6 +4,11 @@ import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+    // Without this, a build without tsconfig (e.g. Docker assets stage) falls back to
+    // the classic JSX transform and emits React.createElement without importing React.
+    esbuild: {
+        jsx: 'automatic',
+    },
     server: {
         host: '127.0.0.1', // Force IPv4
         port: 5173,
