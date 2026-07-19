@@ -708,19 +708,10 @@ class DocumentController extends Controller
             $query->whereIn('id', $ids);
         }
 
-        // Apply direction filter - expand to include Taiwan variants (Admin only)
+        // Apply direction filter - expand to include Taiwan variants (Admin only).
+        // Match both the new and legacy stored formats since the column mixes them.
         if ($user->role === 'ADMIN' && $request->has('direction') && $request->direction) {
-            $selectedDirection = $request->direction;
-
-            // Expand direction to include Taiwan variants
-            $directionsToExport = [];
-            if ($selectedDirection === 'indo-mandarin') {
-                // Indo-Mandarin includes Indo-Taiwan
-                $directionsToExport = ['Indo-Mandarin', 'Indo-Taiwan'];
-            } elseif ($selectedDirection === 'mandarin-indo') {
-                // Mandarin-Indo includes Taiwan-Indo
-                $directionsToExport = ['Mandarin-Indo', 'Taiwan-Indo'];
-            }
+            $directionsToExport = DirectionHelper::expandSelectionToDbValues($request->direction);
 
             if (! empty($directionsToExport)) {
                 $query->whereIn('direction', $directionsToExport);

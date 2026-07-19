@@ -59,4 +59,31 @@ class DirectionHelper
             'TW->ID',
         ];
     }
+
+    /**
+     * Expand a selected export direction slug into every database value that
+     * should match, covering both the new and legacy storage formats.
+     *
+     * The documents table historically mixes formats (a migration rewrote old
+     * rows to the new format, while create/update still persist the old format),
+     * so filtering must match either representation to avoid dropping rows.
+     *
+     * @return array<int, string>
+     */
+    public static function expandSelectionToDbValues(string $selectionSlug): array
+    {
+        $newFormatVariants = [
+            'indo-mandarin' => ['Indo-Mandarin', 'Indo-Taiwan'],
+            'mandarin-indo' => ['Mandarin-Indo', 'Taiwan-Indo'],
+        ];
+
+        $variants = $newFormatVariants[$selectionSlug] ?? [];
+
+        $oldFormatVariants = array_map(
+            fn (string $direction): string => self::convertToOldFormat($direction),
+            $variants
+        );
+
+        return array_values(array_unique(array_merge($variants, $oldFormatVariants)));
+    }
 }

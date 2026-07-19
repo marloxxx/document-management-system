@@ -578,7 +578,7 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
                         </SelectTrigger>
                         <SelectContent className="max-w-md">
                           <SelectItem value="indo-mandarin">
-                            <div className="flex flex-col gap-0.5 py-1">
+                            <div className="flex flex-col items-start gap-0.5 py-1 text-left">
                               <span className="font-semibold text-sm">Indo → Mandarin</span>
                               <span className="text-xs text-muted-foreground line-clamp-2">
                                 Export: Indo-Mandarin + Indo-Taiwan
@@ -586,7 +586,7 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
                             </div>
                           </SelectItem>
                           <SelectItem value="mandarin-indo">
-                            <div className="flex flex-col gap-0.5 py-1">
+                            <div className="flex flex-col items-start gap-0.5 py-1 text-left">
                               <span className="font-semibold text-sm">Mandarin → Indo</span>
                               <span className="text-xs text-muted-foreground line-clamp-2">
                                 Export: Mandarin-Indo + Taiwan-Indo

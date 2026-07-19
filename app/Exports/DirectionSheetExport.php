@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Helpers\DirectionHelper;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -25,7 +26,7 @@ class DirectionSheetExport implements FromCollection, ShouldAutoSize, WithHeadin
                 $document->registration_number ?? 'N/A',
                 strtoupper($typeName),
                 $document->page_count ?? 1,
-                $document->direction,
+                DirectionHelper::convertToNewFormat($document->direction),
                 $document->user_identity ?? 'N/A',
                 optional($document->issued_date)->format('d-m-Y') ?? '-',
                 $document->status,
