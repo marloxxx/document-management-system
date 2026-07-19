@@ -60,6 +60,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Export routes (Admin only)
     Route::middleware('admin')->group(function () {
         Route::get('/export/documents', [DocumentController::class, 'export'])->name('export.documents');
+        Route::get('/export/documents/excel', [DocumentController::class, 'exportExcel'])->name('export.documents.excel');
     });
 
     // Admin-only routes

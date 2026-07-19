@@ -1,7 +1,7 @@
 "use client"
 import { Head, Link } from "@inertiajs/react"
 import { useRef, useState } from "react"
-import { Plus, MoreHorizontal, Edit, Trash2, Eye, Download, FileDown, Archive } from "lucide-react"
+import { Plus, MoreHorizontal, Edit, Trash2, Eye, Download, FileDown, FileSpreadsheet, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import AppLayout from "@/Layouts/AppLayout"
@@ -279,7 +279,54 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
     }] : [])
   ]
 
-  // Handle export with filters
+  // Build query params shared by the Word and Excel exports
+  const buildExportParams = () => {
+    const params = new URLSearchParams()
+
+    // Add direction for admin only
+    if (isAdmin && exportFilters.direction) {
+      params.append('direction', exportFilters.direction)
+    }
+
+    if (exportFilters.startDate) {
+      params.append('start_date', exportFilters.startDate.toISOString().split('T')[0])
+    }
+    if (exportFilters.endDate) {
+      params.append('end_date', exportFilters.endDate.toISOString().split('T')[0])
+    }
+
+    return params
+  }
+
+  // Hit the export endpoint and trigger the file download once it's confirmed ready
+  const runExport = async (url: string) => {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Export failed')
+    }
+
+    window.open(url, '_blank')
+  }
+
+  const resetExportDialog = () => {
+    setIsExportDialogOpen(false)
+    setExportFilters({
+      direction: '',
+      startDate: undefined,
+      endDate: undefined,
+    })
+    setIsStartDateOpen(false)
+    setIsEndDateOpen(false)
+  }
+
+  // Handle export to Word (Buku Repertorium template) with filters
   const handleExportWithFilters = async () => {
     try {
       // Check if direction is selected (admin only)
@@ -292,56 +339,37 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
         return
       }
 
-      const params = new URLSearchParams()
+      const params = buildExportParams()
+      await runExport(`/export/documents?${params.toString()}`)
+      resetExportDialog()
 
-      // Add direction for admin only
-      if (isAdmin && exportFilters.direction) {
-        params.append('direction', exportFilters.direction)
-      }
-
-      if (exportFilters.startDate) {
-        params.append('start_date', exportFilters.startDate.toISOString().split('T')[0])
-      }
-      if (exportFilters.endDate) {
-        params.append('end_date', exportFilters.endDate.toISOString().split('T')[0])
-      }
-
-      const url = `/export/documents?${params.toString()}`
-
-      // Use fetch to check for errors before opening window
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Export failed')
-      }
-
-      // If successful, open the download
-      window.open(url, '_blank')
-      setIsExportDialogOpen(false)
-
-      // Show success toast
       toast({
         title: "Export Successful",
         description: "Documents have been exported successfully.",
         variant: "success",
       })
-
-      // Reset filters
-      setExportFilters({
-        direction: '',
-        startDate: undefined,
-        endDate: undefined,
+    } catch (error: any) {
+      console.error('Export error:', error)
+      toast({
+        title: "Export Failed",
+        description: error.message || 'Failed to export documents',
+        variant: "destructive",
       })
+    }
+  }
 
-      // Reset calendar states
-      setIsStartDateOpen(false)
-      setIsEndDateOpen(false)
+  // Handle export to Excel (.xlsx), one sheet per Arah Bahasa (translation direction)
+  const handleExportExcelWithFilters = async () => {
+    try {
+      const params = buildExportParams()
+      await runExport(`/export/documents/excel?${params.toString()}`)
+      resetExportDialog()
+
+      toast({
+        title: "Export Successful",
+        description: "Documents have been exported to Excel successfully.",
+        variant: "success",
+      })
     } catch (error: any) {
       console.error('Export error:', error)
       toast({
@@ -534,7 +562,7 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
                   {isAdmin && (
                     <div className="space-y-2">
                       <Label htmlFor="direction">
-                        Arah Terjemahan <span className="text-destructive">*</span>
+                        Arah Terjemahan <span className="text-destructive">*</span> (wajib untuk Export Word)
                       </Label>
                       <Select
                         value={exportFilters.direction}
@@ -569,6 +597,9 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
                       </Select>
                       <p className="text-xs text-amber-600 line-clamp-2">
                         Taiwan variants akan otomatis di-include dan ditampilkan sebagai Mandarin
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        Kosongkan untuk Export Excel mencakup semua arah bahasa (masing-masing arah menjadi sheet terpisah dalam 1 file)
                       </p>
                     </div>
                   )}
@@ -639,9 +670,13 @@ export default function DocumentsIndex({ isAdmin, users }: DocumentsIndexProps) 
                   <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
                     Cancel
                   </Button>
+                  <Button variant="outline" onClick={handleExportExcelWithFilters}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Export Excel
+                  </Button>
                   <Button onClick={handleExportWithFilters}>
                     <FileDown className="mr-2 h-4 w-4" />
-                    Export
+                    Export Word
                   </Button>
                 </DialogFooter>
               </DialogContent>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\DocumentsByDirectionExport;
 use App\Helpers\DirectionHelper;
 use App\Models\Document;
 use App\Models\DocumentType;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 class DocumentController extends Controller
@@ -681,14 +683,13 @@ class DocumentController extends Controller
      * Admin: can export all documents with direction filter
      * Client: can only export their own documents
      */
-    public function export(Request $request)
+    /**
+     * Build the filtered documents query shared by the Word and Excel exports.
+     * Admin: can export all documents with direction filter
+     * Client: can only export their own documents
+     */
+    private function buildExportQuery(Request $request, $user)
     {
-        $user = $request->user();
-
-        // Both admin and client can export
-        // Admin: can export all documents with filters
-        // Client: can only export their own documents
-
         // Get selected document IDs from request
         $selectedIds = $request->get('ids', '');
         $ids = $selectedIds ? explode(',', $selectedIds) : [];
@@ -734,8 +735,20 @@ class DocumentController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
+        return $query;
+    }
+
+    /**
+     * Export documents to Word (Buku Repertorium template)
+     * Admin: can export all documents with direction filter
+     * Client: can only export their own documents
+     */
+    public function export(Request $request)
+    {
+        $user = $request->user();
+
         // Get documents
-        $documents = $query->get();
+        $documents = $this->buildExportQuery($request, $user)->get();
 
         // Check if any documents found
         if ($documents->isEmpty()) {
@@ -786,5 +799,30 @@ class DocumentController extends Controller
                 'error' => 'Export failed: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Export documents to Excel (.xlsx), one sheet per translation direction (Arah Bahasa)
+     * Admin: can export all documents with direction filter
+     * Client: can only export their own documents
+     */
+    public function exportExcel(Request $request)
+    {
+        $user = $request->user();
+
+        $documents = $this->buildExportQuery($request, $user)
+            ->orderBy('direction')
+            ->orderBy('created_at')
+            ->get();
+
+        if ($documents->isEmpty()) {
+            return response()->json([
+                'error' => 'No documents found matching the selected criteria.',
+            ], 404);
+        }
+
+        $filename = 'Data_Dokumen_'.date('Y_m_d_His').'.xlsx';
+
+        return Excel::download(new DocumentsByDirectionExport($documents), $filename);
     }
 }
