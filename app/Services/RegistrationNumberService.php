@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Helpers\RomanNumerals;
+use App\Helpers\RegistrationNumberFormatter;
 use App\Models\NumberCounter;
 use App\Models\Registration;
 use App\Models\User;
@@ -51,8 +51,7 @@ class RegistrationNumberService
                     // Update the counter to the new sequence number
                     $counter->update(['current_seq' => $nextSeq]);
 
-                    $romanMonth = RomanNumerals::toRoman($m);
-                    $number = sprintf('%02d/%s/%04d', $nextSeq, $romanMonth, $y);
+                    $number = RegistrationNumberFormatter::format($nextSeq, $m, $y);
 
                     // Create registration - if this fails due to unique constraint,
                     // the transaction will rollback automatically
@@ -115,8 +114,7 @@ class RegistrationNumberService
 
         $counter = NumberCounter::where(['year' => $y, 'month' => $m])->first();
         $seq = ($counter?->current_seq ?? 0) + 1;
-        $romanMonth = RomanNumerals::toRoman($m);
 
-        return sprintf('%02d/%s/%04d', $seq, $romanMonth, $y);
+        return RegistrationNumberFormatter::format($seq, $m, $y);
     }
 }
