@@ -19,15 +19,15 @@ class RegistrationNumberFormatterTest extends TestCase
         return [
             'first number' => [1, '01/VII/2026'],
             '99 padded' => [99, '99/VII/2026'],
-            'last without prefix' => [500, '500/VII/2026'],
-            'first with prefix A' => [501, 'A01/VII/2026'],
-            'middle block A' => [750, 'A250/VII/2026'],
-            'last block A' => [1000, 'A500/VII/2026'],
-            'first block B' => [1001, 'B01/VII/2026'],
-            'last block B' => [1500, 'B500/VII/2026'],
-            'first block Z' => [13001, 'Z01/VII/2026'],
-            'last block Z' => [13000, 'Y500/VII/2026'],
-            'maximum supported' => [13500, 'Z500/VII/2026'],
+            'last without prefix' => [1000, '1000/VII/2026'],
+            'first with prefix A' => [1001, 'A01/VII/2026'],
+            'middle block A' => [1500, 'A500/VII/2026'],
+            'last block A' => [2000, 'A1000/VII/2026'],
+            'first block B' => [2001, 'B01/VII/2026'],
+            'last block B' => [3000, 'B1000/VII/2026'],
+            'last block Y' => [26000, 'Y1000/VII/2026'],
+            'first block Z' => [26001, 'Z01/VII/2026'],
+            'maximum supported' => [27000, 'Z1000/VII/2026'],
         ];
     }
 
@@ -42,6 +42,6 @@ class RegistrationNumberFormatterTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
 
-        RegistrationNumberFormatter::format(13501, 7, 2026);
+        RegistrationNumberFormatter::format(27001, 7, 2026);
     }
 }

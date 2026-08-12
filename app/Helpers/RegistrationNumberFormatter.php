@@ -4,17 +4,17 @@ namespace App\Helpers;
 
 class RegistrationNumberFormatter
 {
-    public const BLOCK_SIZE = 500;
+    public const BLOCK_SIZE = 1000;
 
-    /** Maximum seq per month: 500 (no prefix) + 26 blocks × 500 (A–Z). */
+    /** Maximum seq per month: 1000 (no prefix) + 26 blocks × 1000 (A–Z). */
     public const MAX_SEQ = self::BLOCK_SIZE + (26 * self::BLOCK_SIZE);
 
     /**
      * Format sequence into registration number.
      *
-     * seq 1–500:     01/M/YYYY … 500/M/YYYY
-     * seq 501–1000:  A01/M/YYYY … A500/M/YYYY
-     * seq 1001–1500: B01/M/YYYY … B500/M/YYYY
+     * seq 1–1000:     01/M/YYYY … 1000/M/YYYY
+     * seq 1001–2000:  A01/M/YYYY … A1000/M/YYYY
+     * seq 2001–3000:  B01/M/YYYY … B1000/M/YYYY
      */
     public static function format(int $seq, int $month, int $year): string
     {
